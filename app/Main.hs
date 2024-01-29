@@ -1,5 +1,9 @@
 module Main where
 
+import Hpie.Parser
+
 main :: IO ()
 main = do
-  print "hello"
+  print res
+  where
+    res = runParser pProg ""

@@ -1,15 +1,14 @@
 module Hpie.Parser where
 
 import Data.Char
-import Data.Foldable
 import Data.Functor
 import GHC.Base (Alternative (..))
 import Hpie.Types (Symbol, Term (..))
 
 type Input = String
 
-data ParserError = EOF | Unexpected
-  deriving (Show)
+data ParserError = EOF | Unexpected | Internal
+  deriving (Show, Eq)
 
 newtype Parser a = Parser
   { runParser :: Input -> Either ParserError (Input, a)
@@ -37,13 +36,19 @@ instance Monad Parser where
       )
 
 instance Alternative Parser where
-  empty = Parser (\_ -> Left EOF)
+  empty = Parser (\_ -> Left Internal)
   (<|>) (Parser p1) (Parser p2) =
     Parser
       ( \i -> case p1 i of
           Left _ -> p2 i
           Right r -> Right r
       )
+
+eof :: Parser ()
+eof = spaces *> Parser f
+  where
+    f [] = return ("", ())
+    f _ = Left Unexpected
 
 many0 :: Parser a -> Parser [a]
 many0 p = many1 p <|> return []
@@ -64,7 +69,7 @@ ws :: Parser ()
 ws = char ' ' <|> char '\n' <|> char '\r' <|> char '\t'
 
 spaces :: Parser ()
-spaces = many1 ws $> ()
+spaces = many0 ws $> ()
 
 charHelper :: (Char -> Bool) -> Parser Char
 charHelper f = Parser go
@@ -103,18 +108,25 @@ string (c : cs) = char c >> string cs $> ()
 kw :: String -> Parser ()
 kw k =
   if k `elem` keywords
-    then string k
-    else failure Unexpected
+    then spaces *> string k
+    else failure Internal
   where
     keywords = ["λ", "Π", "Σ", "α", "β", "Nat", "Zero", "Succ", "IndNat", "U"]
 
+token :: Char -> Parser ()
+token c = spaces *> char c
+
 parens :: Parser a -> Parser a
-parens p = char '(' *> p <* char ')'
+parens p = token '(' *> p <* token ')'
+
+pProg :: Parser Term
+pProg = pTerm <* eof
 
 pTerm :: Parser Term
 pTerm =
-  pTermSkipWS
-    <|> asum
+  spaces
+    *> foldr1
+      (<|>)
       [ pPi,
         pLam,
         pApp,
@@ -126,10 +138,10 @@ pTerm =
         pZero,
         pSucc,
         pIndNat,
-        pU
+        pU,
+        pParens,
+        pVar
       ]
-    <|> pParens
-    <|> pVar
 
 pVar :: Parser Term
 pVar = Var <$> ident
@@ -152,12 +164,12 @@ pApp = parens (App <$> pTerm <*> pTerm)
 pSigma :: Parser Term
 pSigma = do
   _ <- kw "Σ"
-  (x, a) <- parens ((ident <* char ':') +++ pTerm)
+  (x, a) <- parens ((ident <* token ':') +++ pTerm)
   Pi x a <$> pTerm
 
 pPair :: Parser Term
 pPair = do
-  (f, s) <- parens ((pTerm <* char ',') +++ pTerm)
+  (f, s) <- parens ((pTerm <* token ',') +++ pTerm)
   return $ Pair f s
 
 pFirst :: Parser Term
@@ -183,6 +195,3 @@ pU = kw "U" $> U
 
 pParens :: Parser Term
 pParens = parens pTerm
-
-pTermSkipWS :: Parser Term
-pTermSkipWS = spaces *> pTerm
