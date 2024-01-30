@@ -52,7 +52,7 @@ eq left right =
     (App f1 arg1, App f2 arg2) -> eq f1 f2 *> eq arg1 arg2
     (Sigma x1 a1 b1, Sigma x2 a2 b2) ->
       eq a1 a2 *> with x1 x2 (eq b1 b2)
-    (Pair l1 r1, Pair l2 r2) ->
+    (Cons l1 r1, Cons l2 r2) ->
       eq l1 l2 *> eq r1 r2
     (First p1, First p2) -> eq p1 p2
     (Second p1, Second p2) -> eq p1 p2

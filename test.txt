@@ -1,0 +1,14 @@
+Claim mot Π(x:Nat) U
+Define mot λ(x) Nat
+
+Claim step Π(cur:Nat) Π(last:Nat) Nat
+Define step λ(cur) λ(last) Succ last
+
+Claim plus Π(left:Nat) Π(right:Nat) Nat
+Define plus λ(left) λ(right) (IndNat left mot right step)
+
+Claim x Nat
+Define x (
+    (plus (Succ Zero))
+    (Succ Succ Zero)
+)

@@ -1,9 +1,8 @@
 module Main where
 
-import Hpie.Parser
+import Hpie.TopLevel (topLevelMain)
 
 main :: IO ()
 main = do
-  print res
-  where
-    res = runParser pProg ""
+  input <- readFile "test.txt"
+  mapM_ print $ topLevelMain input

@@ -4,86 +4,41 @@ import qualified Hpie.AlphaEq as AlphaEq
 import qualified Hpie.Norm as Norm
 import Hpie.Types
 
-data CtxEntry a = Def a a | IsA a
+failCheck :: CtxWorker a
+failCheck = CtxWorker (\_ -> Left ())
 
-newtype CheckTy a = CheckTy
-  { runCheck :: Env (CtxEntry Value) -> Either () a
-  }
+eval :: Term -> CtxWorker Value
+eval = toCtxWorker . Norm.eval
 
-instance Functor CheckTy where
-  fmap f (CheckTy ckta) = CheckTy (fmap f . ckta)
+reify :: Value -> CtxWorker Term
+reify = toCtxWorker . Norm.reify
 
-instance Applicative CheckTy where
-  pure x = CheckTy (\_ -> Right x)
-  (<*>) (CheckTy cktab) (CheckTy ckta) = CheckTy (\e -> cktab e <*> ckta e)
+evalInEnv :: Env Value -> Term -> CtxWorker Value
+evalInEnv env t = toCtxWorker (Norm.withEnv env (Norm.eval t))
 
-instance Monad CheckTy where
-  (>>=) (CheckTy ckta) f =
-    CheckTy
-      ( \ctx -> case ckta ctx of
-          Left () -> Left ()
-          Right r -> runCheck (f r) ctx
-      )
+doSecond :: Value -> CtxWorker Value
+doSecond = toCtxWorker . Norm.doSecond
 
-failCheck :: CheckTy a
-failCheck = CheckTy (\_ -> Left ())
+doApply :: Value -> Value -> CtxWorker Value
+doApply f arg = toCtxWorker $ Norm.doApply f arg
 
-getTy :: CtxEntry Value -> Value
-getTy (IsA ty) = ty
-getTy (Def _ ty) = ty
+doApplyClosure :: Closure -> Value -> CtxWorker Value
+doApplyClosure c v = toCtxWorker $ Norm.doApplyClosure c v
 
-mkEnv :: Env (CtxEntry Value) -> Env Value
-mkEnv (Env []) = Env []
-mkEnv (Env ((s, e) : es)) = Env ((s, v) : nes)
-  where
-    Env nes = mkEnv (Env es)
-    v = case e of
-      IsA _ -> VNeutral (NVar s)
-      Def value _ -> value
-
-getCtx :: CheckTy (Env (CtxEntry Value))
-getCtx = CheckTy return
-
-extendCtx :: Symbol -> Value -> CheckTy a -> CheckTy a
-extendCtx s ty (CheckTy ckt) = CheckTy (\ctx -> ckt (extend ctx (s, IsA ty)))
-
-runNorm :: Worker a -> CheckTy a
-runNorm (Worker norm) = do
-  ctx <- getCtx
-  return $ norm (mkEnv ctx) []
-
-eval :: Term -> CheckTy Value
-eval = runNorm . Norm.eval
-
-reify :: Value -> CheckTy Term
-reify = runNorm . Norm.reify
-
-evalInEnv :: Env Value -> Term -> CheckTy Value
-evalInEnv env t = runNorm (Norm.withEnv env (Norm.eval t))
-
-doSecond :: Value -> CheckTy Value
-doSecond = runNorm . Norm.doSecond
-
-doApply :: Value -> Value -> CheckTy Value
-doApply f arg = runNorm $ Norm.doApply f arg
-
-doApplyClosure :: Closure -> Value -> CheckTy Value
-doApplyClosure c v = runNorm $ Norm.doApplyClosure c v
-
-lookupTy :: Symbol -> CheckTy Value
+lookupTy :: Symbol -> CtxWorker Value
 lookupTy s =
-  CheckTy
+  CtxWorker
     ( \ctx -> do
         entry <- lookV ctx s
         return $ getTy entry
     )
 
-infer :: Term -> CheckTy Value
+infer :: Term -> CtxWorker Value
 infer (Var x) = lookupTy x
 infer (Pi x a b) = do
   _ <- check a VU
   aV <- eval a
-  _ <- extendCtx x aV (check b VU)
+  _ <- extendCtx x (IsA aV) (check b VU)
   return VU
 infer (App f arg) = do
   fTy <- infer f
@@ -96,7 +51,7 @@ infer (App f arg) = do
 infer (Sigma x a b) = do
   _ <- check a VU
   va <- eval a
-  _ <- extendCtx x va (check b VU)
+  _ <- extendCtx x (IsA va) (check b VU)
   return VU
 infer (First p) = do
   pTy <- infer p
@@ -124,7 +79,7 @@ infer (IndNat target mot base step) = do
       _ <- check base baseTy
       stepTy <-
         evalInEnv
-          (Env [("mot", motTy)])
+          (Env [("mot", motV)])
           ( Pi
               "n"
               Nat
@@ -140,13 +95,13 @@ infer (IndNat target mot base step) = do
 infer U = return VU
 infer _ = failCheck
 
-check :: Term -> Value -> CheckTy ()
+check :: Term -> Value -> CtxWorker ()
 check (Lam x t) fTy = case fTy of
   (VPi _ aT closure) -> do
     tT <- doApplyClosure closure (VNeutral (NVar x))
-    extendCtx x aT (check t tT)
+    extendCtx x (IsA aT) (check t tT)
   _ -> failCheck
-check (Pair first second) pTy = case pTy of
+check (Cons first second) pTy = case pTy of
   (VSigma _ aT closure) -> do
     _ <- check first aT
     firstV <- eval first
@@ -163,7 +118,7 @@ check other tTy = do
   tTy' <- infer other
   convert tTy tTy'
 
-convert :: Value -> Value -> CheckTy ()
+convert :: Value -> Value -> CtxWorker ()
 convert v1 v2 = do
   e1 <- reify v1
   e2 <- reify v2

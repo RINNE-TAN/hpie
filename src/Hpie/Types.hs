@@ -31,6 +31,7 @@ extend :: Env a -> (Symbol, a) -> Env a
 extend (Env e) p = Env (p : e)
 
 data Closure = Closure (Env Value) (Symbol, Term)
+  deriving (Show)
 
 data Term
   = Var Symbol -- x
@@ -38,7 +39,7 @@ data Term
   | Lam Symbol Term -- λ(x) t
   | App Term Term -- f arg
   | Sigma Symbol Term Term -- Σ(x:A) D
-  | Pair Term Term -- (l,r)
+  | Cons Term Term -- ons l r
   | First Term -- first p
   | Second Term -- second p
   | Nat -- Nat
@@ -57,12 +58,13 @@ data Value
   = VPi Symbol Value Closure
   | VLam Symbol Closure
   | VSigma Symbol Value Closure
-  | VPair Value Value
+  | VCons Value Value
   | VNat
   | VZero
   | VSucc Value
   | VU
   | VNeutral Neutral
+  deriving (Show)
 
 data Neutral
   = NVar Symbol
@@ -70,6 +72,7 @@ data Neutral
   | NFirst Neutral
   | NSecond Neutral
   | NIndNat Neutral Value Value Value
+  deriving (Show)
 
 newtype Worker a = Worker
   { runWorker :: Env Value -> [Symbol] -> a
@@ -85,3 +88,62 @@ instance Applicative Worker where
 instance Monad Worker where
   (>>=) (Worker na) f =
     Worker (\env bound -> runWorker (f (na env bound)) env bound)
+
+data CtxEntry a = Def a a | IsA a
+  deriving (Show)
+
+newtype CtxWorker a = CtxWorker
+  { runCtxWorker :: Env (CtxEntry Value) -> Either () a
+  }
+
+instance Functor CtxWorker where
+  fmap f (CtxWorker ckta) = CtxWorker (fmap f . ckta)
+
+instance Applicative CtxWorker where
+  pure x = CtxWorker (\_ -> Right x)
+  (<*>) (CtxWorker cktab) (CtxWorker ckta) = CtxWorker (\e -> cktab e <*> ckta e)
+
+instance Monad CtxWorker where
+  (>>=) (CtxWorker ckta) f =
+    CtxWorker
+      ( \ctx -> case ckta ctx of
+          Left () -> Left ()
+          Right r -> runCtxWorker (f r) ctx
+      )
+
+toCtxWorker :: Worker a -> CtxWorker a
+toCtxWorker (Worker norm) = do
+  ctx <- getCtx
+  return $ norm (mkEnv ctx) []
+
+mkEnv :: Env (CtxEntry Value) -> Env Value
+mkEnv (Env []) = Env []
+mkEnv (Env ((s, e) : es)) = Env ((s, v) : nes)
+  where
+    Env nes = mkEnv (Env es)
+    v = case e of
+      IsA _ -> VNeutral (NVar s)
+      Def value _ -> value
+
+getCtx :: CtxWorker (Env (CtxEntry Value))
+getCtx = CtxWorker return
+
+getTy :: CtxEntry Value -> Value
+getTy (IsA ty) = ty
+getTy (Def _ ty) = ty
+
+extendCtx :: Symbol -> CtxEntry Value -> CtxWorker a -> CtxWorker a
+extendCtx s v (CtxWorker ckt) = CtxWorker (\ctx -> ckt (extend ctx (s, v)))
+
+data TopLevel
+  = Claim Symbol Term
+  | Define Symbol Term
+  | CheckSame Term Term Term
+  deriving (Show)
+
+data TopLevelMsg
+  = AddClaim Symbol Term
+  | AddDefine Symbol Term Term
+  | IsSame
+  | NotSame
+  deriving (Show)

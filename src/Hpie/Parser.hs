@@ -3,11 +3,11 @@ module Hpie.Parser where
 import Data.Char
 import Data.Functor
 import GHC.Base (Alternative (..))
-import Hpie.Types (Symbol, Term (..))
+import Hpie.Types (Symbol, Term (..), TopLevel (..))
 
 type Input = String
 
-data ParserError = EOF | Unexpected | Internal
+data ParserError = EOF | Unexpected String | Internal
   deriving (Show, Eq)
 
 newtype Parser a = Parser
@@ -48,7 +48,7 @@ eof :: Parser ()
 eof = spaces *> Parser f
   where
     f [] = return ("", ())
-    f _ = Left Unexpected
+    f s = Left $ Unexpected s
 
 many0 :: Parser a -> Parser [a]
 many0 p = many1 p <|> return []
@@ -78,7 +78,7 @@ charHelper f = Parser go
     go (c : cs) =
       if f c
         then Right (cs, c)
-        else Left Unexpected
+        else Left $ Unexpected (c : cs)
 
 char :: Char -> Parser ()
 char ch = charHelper (== ch) $> ()
@@ -108,10 +108,25 @@ string (c : cs) = char c >> string cs $> ()
 kw :: String -> Parser ()
 kw k =
   if k `elem` keywords
-    then spaces *> string k
+    then spaces *> string k <* spaces
     else failure Internal
   where
-    keywords = ["λ", "Π", "Σ", "α", "β", "Nat", "Zero", "Succ", "IndNat", "U"]
+    keywords =
+      [ "λ",
+        "Π",
+        "Σ",
+        "Cons",
+        "α",
+        "β",
+        "Nat",
+        "Zero",
+        "Succ",
+        "IndNat",
+        "U",
+        "Claim",
+        "Define",
+        "CheckSame"
+      ]
 
 token :: Char -> Parser ()
 token c = spaces *> char c
@@ -119,8 +134,17 @@ token c = spaces *> char c
 parens :: Parser a -> Parser a
 parens p = token '(' *> p <* token ')'
 
-pProg :: Parser Term
-pProg = pTerm <* eof
+pProg :: Parser [TopLevel]
+pProg = many1 (pCheckSame <|> pClaim <|> pDefine) <* eof
+
+pCheckSame :: Parser TopLevel
+pCheckSame = kw "CheckSame" *> (CheckSame <$> pTerm <*> pTerm <*> pTerm)
+
+pClaim :: Parser TopLevel
+pClaim = kw "Claim" *> (Claim <$> ident <*> pTerm)
+
+pDefine :: Parser TopLevel
+pDefine = kw "Define" *> (Define <$> ident <*> pTerm)
 
 pTerm :: Parser Term
 pTerm =
@@ -149,7 +173,7 @@ pVar = Var <$> ident
 pPi :: Parser Term
 pPi = do
   _ <- kw "Π"
-  (x, a) <- parens ((ident <* char ':') +++ pTerm)
+  (x, a) <- parens ((ident <* token ':') +++ pTerm)
   Pi x a <$> pTerm
 
 pLam :: Parser Term
@@ -168,9 +192,7 @@ pSigma = do
   Pi x a <$> pTerm
 
 pPair :: Parser Term
-pPair = do
-  (f, s) <- parens ((pTerm <* token ',') +++ pTerm)
-  return $ Pair f s
+pPair = kw "Cons" *> (Cons <$> pTerm <*> pTerm)
 
 pFirst :: Parser Term
 pFirst = kw "α" *> (First <$> pTerm)

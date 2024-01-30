@@ -9,31 +9,31 @@ extra-source-files: CHANGELOG.md
 common all
   build-depends:       base ^>=4.17.2.0
   ghc-options:         -Wall -fno-warn-incomplete-patterns
+  default-language:    Haskell2010
 
+common for-test
+  import:              all            
+  hs-source-dirs:      test
+  build-depends:       hpie
+                       , tasty ^>= 1.4
+                       , tasty-hunit ^>= 0.10
 library
   import:              all
   hs-source-dirs:      src
-  default-language:    Haskell2010
   exposed-modules:     Hpie.Types
                        Hpie.AlphaEq
                        Hpie.Norm
                        Hpie.CheckTy
                        Hpie.Parser
+                       Hpie.TopLevel
 
 executable hpie
   import:           all
   main-is:          Main.hs
   hs-source-dirs:   app
   build-depends:    hpie
-  default-language: Haskell2010
 
-test-suite hpie-tests
-  import:              all
-    
+test-suite parser-tests
+  import:              for-test
   type:                exitcode-stdio-1.0
-  main-is:             Test.hs
-  hs-source-dirs:      test
-  build-depends:       hpie
-                       , tasty ^>= 1.4
-                       , tasty-hunit ^>= 0.10
-  default-language:    Haskell2010
+  main-is:             Parser.hs

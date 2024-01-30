@@ -43,7 +43,7 @@ eval (App f arg) = do
   argV <- eval arg
   doApply fV argV
 eval (Sigma x a b) = VSigma x <$> eval a <*> close (x, b)
-eval (Pair l r) = VPair <$> eval l <*> eval r
+eval (Cons l r) = VCons <$> eval l <*> eval r
 eval (First p) = eval p >>= doFirst
 eval (Second p) = eval p >>= doSecond
 eval Nat = return VNat
@@ -63,6 +63,7 @@ doApplyClosure (Closure env (s, t)) arg = withEnv (extend env (s, arg)) (eval t)
 doApply :: Value -> Value -> Worker Value
 doApply (VLam _ closure) arg = doApplyClosure closure arg
 doApply (VNeutral ne) arg = return $ VNeutral (NApp ne arg)
+doApply f arg = error $ "fun is " ++ show f ++ "\n" ++ "arg is " ++ show arg
 
 doIndNat :: Value -> Value -> Value -> Value -> Worker Value
 doIndNat VZero _ base _ = return base
@@ -74,11 +75,11 @@ doIndNat (VNeutral ne) mot base step =
   return $ VNeutral (NIndNat ne mot base step)
 
 doFirst :: Value -> Worker Value
-doFirst (VPair l _) = return l
+doFirst (VCons l _) = return l
 doFirst (VNeutral ne) = return $ VNeutral (NFirst ne)
 
 doSecond :: Value -> Worker Value
-doSecond (VPair _ r) = return r
+doSecond (VCons _ r) = return r
 doSecond (VNeutral ne) = return $ VNeutral (NSecond ne)
 
 reifyClosure :: Symbol -> Closure -> Worker (Symbol, Term)
@@ -101,7 +102,7 @@ reify (VSigma x a closure) = do
   aT <- reify a
   (y, bT) <- reifyClosure x closure
   return $ Sigma y aT bT
-reify (VPair l r) = Pair <$> reify l <*> reify r
+reify (VCons l r) = Cons <$> reify l <*> reify r
 reify VNat = return Nat
 reify VZero = return Zero
 reify (VSucc n) = Succ <$> reify n
