@@ -12,3 +12,14 @@ Define x (
     (plus (Succ Zero))
     (Succ Succ Zero)
 )
+
+Claim idty U
+Define idty Π(ty:U) Π(x:ty) ty
+
+Claim id idty
+Define id λ(ty) λ(x) x
+
+CheckSame 
+    idty 
+    id 
+    ((id idty) id)
