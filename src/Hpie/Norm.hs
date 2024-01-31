@@ -25,7 +25,7 @@ var :: Symbol -> Worker Value
 var s =
   Worker
     ( \env _ -> case lookV env s of
-        Left () -> undefined
+        Left () -> error $ "not found var " ++ s
         Right v -> v
     )
 
@@ -37,6 +37,7 @@ close p = do
 eval :: Term -> Worker Value
 eval (Var s) = var s
 eval (Pi x a b) = VPi x <$> eval a <*> close (x, b)
+eval (Arrow a b) = VPi "x" <$> eval a <*> close ("x", b)
 eval (Lam x t) = VLam x <$> close (x, t)
 eval (App f arg) = do
   fV <- eval f

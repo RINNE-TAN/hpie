@@ -47,6 +47,7 @@ eq left right =
         )
     (Pi x1 a1 b1, Pi x2 a2 b2) ->
       eq a1 a2 *> with x1 x2 (eq b1 b2)
+    (Arrow a1 b1, Arrow a2 b2) -> eq a1 b1 *> eq a2 b2
     (Lam x1 t1, Lam x2 t2) ->
       with x1 x2 (eq t1 t2)
     (App f1 arg1, App f2 arg2) -> eq f1 f2 *> eq arg1 arg2

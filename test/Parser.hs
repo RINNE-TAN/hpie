@@ -71,12 +71,12 @@ testApp =
     "Parser App"
     parserSucc
     [ ("(a b)", App (Var "a") (Var "b")),
-      ( "(Π(x: Nat) a b)",
+      ( "(Π(x: Nat) a) b",
         App
           (Pi "x" Nat (Var "a"))
           (Var "b")
       ),
-      ( "(λ (x) y z)",
+      ( "(λ (x) y) z",
         App
           (Lam "x" (Var "y"))
           (Var "z")

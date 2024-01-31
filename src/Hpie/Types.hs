@@ -36,6 +36,7 @@ data Closure = Closure (Env Value) (Symbol, Term)
 data Term
   = Var Symbol -- x
   | Pi Symbol Term Term -- Π(x:A) B
+  | Arrow Term Term -- A -> B
   | Lam Symbol Term -- λ(x) t
   | App Term Term -- f arg
   | Sigma Symbol Term Term -- Σ(x:A) D

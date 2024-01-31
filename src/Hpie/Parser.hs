@@ -59,6 +59,9 @@ many1 p = do
   ptails <- many0 p
   return $ ph : ptails
 
+optional :: Parser a -> Parser (Maybe a)
+optional pa = (Just <$> pa) <|> return Nothing
+
 (+++) :: Parser a -> Parser b -> Parser (a, b)
 (+++) pa pb = (,) <$> pa <*> pb
 
@@ -99,7 +102,10 @@ ident :: Parser Symbol
 ident = do
   idHead <- alpha
   idTail <- many0 idChar
-  return $ idHead : idTail
+  let s = idHead : idTail
+  if s `elem` keywords
+    then failure (Unexpected s)
+    else return s
 
 string :: String -> Parser ()
 string [] = return ()
@@ -110,23 +116,26 @@ kw k =
   if k `elem` keywords
     then spaces *> string k <* spaces
     else failure Internal
-  where
-    keywords =
-      [ "λ",
-        "Π",
-        "Σ",
-        "Cons",
-        "α",
-        "β",
-        "Nat",
-        "Zero",
-        "Succ",
-        "IndNat",
-        "U",
-        "Claim",
-        "Define",
-        "CheckSame"
-      ]
+
+keywords :: [String]
+keywords =
+  [ "λ",
+    "Π",
+    "Σ",
+    "->",
+    "Cons",
+    "First",
+    "Second",
+    "Nat",
+    "Zero",
+    "Succ",
+    "IndNat",
+    "U",
+    "Claim",
+    "Define",
+    "CheckSame",
+    "==="
+  ]
 
 token :: Char -> Parser ()
 token c = spaces *> char c
@@ -138,7 +147,14 @@ pProg :: Parser [TopLevel]
 pProg = many1 (pCheckSame <|> pClaim <|> pDefine) <* eof
 
 pCheckSame :: Parser TopLevel
-pCheckSame = kw "CheckSame" *> (CheckSame <$> pTerm <*> pTerm <*> pTerm)
+pCheckSame = do
+  kw "CheckSame"
+  left <- pTerm
+  kw "==="
+  right <- pTerm
+  token ':'
+  ty <- pTerm
+  return $ CheckSame ty left right
 
 pClaim :: Parser TopLevel
 pClaim = kw "Claim" *> (Claim <$> ident <*> pTerm)
@@ -146,74 +162,77 @@ pClaim = kw "Claim" *> (Claim <$> ident <*> pTerm)
 pDefine :: Parser TopLevel
 pDefine = kw "Define" *> (Define <$> ident <*> pTerm)
 
-pTerm :: Parser Term
-pTerm =
+-- Atom
+pNat, pZero, pU, pVar, pParens :: Parser Term
+pNat = kw "Nat" $> Nat
+pZero = kw "Zero" $> Zero
+pU = kw "U" $> U
+pVar = Var <$> ident
+pParens = parens pTerm
+
+pAtom :: Parser Term
+pAtom =
   spaces
     *> foldr1
       (<|>)
-      [ pPi,
-        pLam,
-        pApp,
-        pSigma,
-        pPair,
-        pFirst,
-        pSecond,
-        pNat,
+      [ pNat,
         pZero,
-        pSucc,
-        pIndNat,
         pU,
-        pParens,
-        pVar
+        pVar,
+        pParens
       ]
 
-pVar :: Parser Term
-pVar = Var <$> ident
+pApp :: Parser Term
+pApp = do
+  list <- many1 pAtom
+  return $ foldl1 App list
 
-pPi :: Parser Term
+pCons, pFirst, pSecond, pSucc, pIndNat :: Parser Term
+pCons = kw "Cons" *> (Cons <$> pAtom <*> pAtom)
+pFirst = kw "First" *> (First <$> pAtom)
+pSecond = kw "Second" *> (Second <$> pAtom)
+pSucc = kw "Succ" *> (Succ <$> pAtom)
+pIndNat = kw "IndNat" *> (IndNat <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
+
+pApply :: Parser Term
+pApply =
+  foldr1
+    (<|>)
+    [ pCons,
+      pFirst,
+      pSecond,
+      pSucc,
+      pIndNat
+    ]
+
+pArrow :: Parser Term
+pArrow = do
+  arrowHead <- pApp <|> pApply
+  optional (kw "->") >>= f arrowHead
+  where
+    f arrowHead Nothing = return arrowHead
+    f arrowHead (Just _) = Arrow arrowHead <$> pTerm
+
+pPi, pLam, pSigma :: Parser Term
 pPi = do
   _ <- kw "Π"
   (x, a) <- parens ((ident <* token ':') +++ pTerm)
   Pi x a <$> pTerm
-
-pLam :: Parser Term
 pLam = do
   _ <- kw "λ"
   x <- parens ident
   Lam x <$> pTerm
-
-pApp :: Parser Term
-pApp = parens (App <$> pTerm <*> pTerm)
-
-pSigma :: Parser Term
 pSigma = do
   _ <- kw "Σ"
   (x, a) <- parens ((ident <* token ':') +++ pTerm)
   Pi x a <$> pTerm
 
-pPair :: Parser Term
-pPair = kw "Cons" *> (Cons <$> pTerm <*> pTerm)
-
-pFirst :: Parser Term
-pFirst = kw "α" *> (First <$> pTerm)
-
-pSecond :: Parser Term
-pSecond = kw "β" *> (Second <$> pTerm)
-
-pNat :: Parser Term
-pNat = kw "Nat" $> Nat
-
-pZero :: Parser Term
-pZero = kw "Zero" $> Zero
-
-pSucc :: Parser Term
-pSucc = kw "Succ" *> (Succ <$> pTerm)
-
-pIndNat :: Parser Term
-pIndNat = kw "IndNat" *> (IndNat <$> pTerm <*> pTerm <*> pTerm <*> pTerm)
-
-pU :: Parser Term
-pU = kw "U" $> U
-
-pParens :: Parser Term
-pParens = parens pTerm
+pTerm :: Parser Term
+pTerm =
+  foldr1
+    (<|>)
+    [ pPi,
+      pLam,
+      pSigma,
+      pArrow
+    ]

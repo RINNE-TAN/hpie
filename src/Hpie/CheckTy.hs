@@ -40,6 +40,10 @@ infer (Pi x a b) = do
   aV <- eval a
   _ <- extendCtx x (IsA aV) (check b VU)
   return VU
+infer (Arrow a b) = do
+  _ <- check a VU
+  _ <- check b VU
+  return VU
 infer (App f arg) = do
   fTy <- infer f
   case fTy of
