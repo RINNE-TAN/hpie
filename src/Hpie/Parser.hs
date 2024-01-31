@@ -131,9 +131,7 @@ keywords =
     "Succ",
     "IndNat",
     "U",
-    "Claim",
-    "Define",
-    "CheckSame",
+    "::",
     "==="
   ]
 
@@ -144,11 +142,10 @@ parens :: Parser a -> Parser a
 parens p = token '(' *> p <* token ')'
 
 pProg :: Parser [TopLevel]
-pProg = many1 (pCheckSame <|> pClaim <|> pDefine) <* eof
+pProg = many1 ((pCheckSame <|> pClaim <|> pDefine) <* token '.' <* spaces) <* eof
 
 pCheckSame :: Parser TopLevel
 pCheckSame = do
-  kw "CheckSame"
   left <- pTerm
   kw "==="
   right <- pTerm
@@ -157,10 +154,10 @@ pCheckSame = do
   return $ CheckSame ty left right
 
 pClaim :: Parser TopLevel
-pClaim = kw "Claim" *> (Claim <$> ident <*> pTerm)
+pClaim = Claim <$> (ident <* kw "::") <*> pTerm
 
 pDefine :: Parser TopLevel
-pDefine = kw "Define" *> (Define <$> ident <*> pTerm)
+pDefine = Define <$> (ident <* token '=') <*> pTerm
 
 -- Atom
 pNat, pZero, pU, pVar, pParens :: Parser Term

@@ -1,44 +1,44 @@
-Claim mot Nat -> U
-Define mot λ(x) Nat
+mot :: Nat -> U.
+mot = λ(x) Nat.
 
-Claim step Nat -> Nat -> Nat
-Define step λ(cur) λ(last) Succ last
+step :: Nat -> Nat -> Nat.
+step = λ(cur) λ(last) Succ last.
 
-Claim plus Nat -> Nat -> Nat
-Define plus λ(left) λ(right) (IndNat left mot right step)
+plus :: Nat -> Nat -> Nat.
+plus = λ(left) λ(right) (IndNat left mot right step).
 
-Claim x Nat
-Define x plus (Succ Zero) (Succ (Succ Zero))
+x :: Nat.
+x = plus (Succ Zero) (Succ (Succ Zero)).
 
-Claim idty U
-Define idty Π(ty:U) ty -> ty
+idty :: U.
+idty = Π(ty:U) ty -> ty.
 
-Claim id idty
-Define id λ(ty) λ(x) x
+id :: idty.
+id = λ(ty) λ(x) x.
 
-CheckSame id === id idty id : idty
+id === id idty id : idty.
 
-Claim nNat U
-Claim nZero nNat
-Claim nSucc nNat -> nNat
+nNat :: U.
+nZero :: nNat.
+nSucc :: nNat -> nNat.
 
-Claim two nNat
-Define two nSucc (nSucc nZero)
+two :: nNat.
+two = nSucc (nSucc nZero).
 
-Claim one nNat
-Define one nSucc nZero
+one :: nNat.
+one = nSucc nZero.
 
-CheckSame two === (nSucc one) : nNat
+two === (nSucc one) : nNat.
 
-Claim List U -> U
-Claim nil Π(ty:U) (List ty)
-Claim cons Π(ty:U) ty -> List ty -> List ty
+List :: U -> U.
+nil :: Π(ty:U) (List ty).
+cons :: Π(ty:U) ty -> List ty -> List ty.
 
-Claim empty List Nat
-Define empty nil Nat
+empty :: List Nat.
+empty = nil Nat.
 
-Claim push List Nat -> Nat -> List Nat
-Define push λ(xs) λ(x) cons Nat x xs
+push :: List Nat -> Nat -> List Nat.
+push = λ(xs) λ(x) cons Nat x xs.
 
-Claim list_example List Nat
-Define list_example push empty Zero
+list_example :: List Nat.
+list_example = push empty Zero.

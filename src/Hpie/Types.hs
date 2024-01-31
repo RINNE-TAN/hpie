@@ -3,7 +3,10 @@ module Hpie.Types where
 type Symbol = String
 
 freshen :: [Symbol] -> Symbol -> Symbol
-freshen = go 0
+freshen b s =
+  if s `notElem` b || s == "_"
+    then s
+    else go 0 b s
   where
     go :: Int -> [Symbol] -> Symbol -> Symbol
     go idx bound start =
