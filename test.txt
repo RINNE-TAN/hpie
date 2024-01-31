@@ -31,7 +31,7 @@ one = nSucc nZero.
 two === (nSucc one) : nNat.
 
 List :: U -> U.
-nil :: Π(ty:U) (List ty).
+nil :: Π(ty:U) List ty.
 cons :: Π(ty:U) ty -> List ty -> List ty.
 
 empty :: List Nat.
@@ -42,3 +42,42 @@ push = λ(xs) λ(x) cons Nat x xs.
 
 list_example :: List Nat.
 list_example = push empty Zero.
+
+Vec :: Nat -> U -> U.
+vecNil :: Π(ty:U) Vec Zero ty.
+vecCons :: Π(n:Nat) Π(ty:U) ty -> Vec n ty -> Vec (Succ n) ty.
+
+emptyVec :: Vec Zero Nat.
+emptyVec = vecNil Nat.
+
+pushVec :: Π(n:Nat) Vec n Nat -> Nat -> Vec (Succ n) Nat.
+pushVec = λ(n) λ(xs) λ (x) vecCons n Nat x xs.
+
+vecMot :: Nat -> U.
+vecMot = λ(n) Vec n Nat.
+
+stepMot :: Π(n:Nat) vecMot n -> vecMot (Succ n).
+stepMot = λ(n) λ(xs) pushVec n xs n.
+
+toVec :: Π(n:Nat) Vec n Nat.
+toVec = λ(n) IndNat n vecMot emptyVec stepMot.
+
+one :: Nat.
+one = Succ Zero.
+
+two :: Nat.
+two = Succ one.
+
+three :: Nat.
+three = Succ two.
+
+Vec1 :: Vec one Nat.
+Vec1 = pushVec Zero emptyVec Zero.
+
+Vec2 :: Vec two Nat.
+Vec2 = pushVec one Vec1 one.
+
+Vec3 :: Vec three Nat.
+Vec3 = pushVec two Vec2 two.
+
+Vec3 === toVec three : Vec three Nat.
