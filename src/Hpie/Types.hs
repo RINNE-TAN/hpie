@@ -43,6 +43,7 @@ data Term
   | Lam Symbol Term -- λ(x) t
   | App Term Term -- f arg
   | Sigma Symbol Term Term -- Σ(x:A) D
+  | Pair Term Term -- Pair A D
   | Cons Term Term -- (l, r)
   | First Term -- First p
   | Second Term -- Second p

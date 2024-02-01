@@ -57,6 +57,10 @@ infer (Sigma x a b) = do
   va <- eval a
   _ <- extendCtx x (IsA va) (check b VU)
   return VU
+infer (Pair a b) = do
+  _ <- check a VU
+  _ <- check b VU
+  return VU
 infer (First p) = do
   pTy <- infer p
   case pTy of

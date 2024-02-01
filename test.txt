@@ -90,3 +90,9 @@ firstTest = First ptest.
 
 secondTest :: Vec Zero Nat.
 secondTest = Second ptest.
+
+pNat :: Pair Nat Nat.
+pNat = (Zero, Succ Zero).
+
+Zero === First pNat : Nat.
+Succ Zero === Second pNat : Nat.

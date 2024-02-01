@@ -123,6 +123,7 @@ keywords =
     "Π",
     "Σ",
     "->",
+    "Pair",
     "First",
     "Second",
     "Nat",
@@ -183,7 +184,8 @@ pApp = do
   list <- many1 pAtom
   return $ foldl1 App list
 
-pFirst, pSecond, pSucc, pIndNat :: Parser Term
+pPair, pFirst, pSecond, pSucc, pIndNat :: Parser Term
+pPair = kw "Pair" *> (Pair <$> pAtom <*> pAtom)
 pFirst = kw "First" *> (First <$> pAtom)
 pSecond = kw "Second" *> (Second <$> pAtom)
 pSucc = kw "Succ" *> (Succ <$> pAtom)
@@ -193,7 +195,8 @@ pApply :: Parser Term
 pApply =
   foldr1
     (<|>)
-    [ pFirst,
+    [ pPair,
+      pFirst,
       pSecond,
       pSucc,
       pIndNat

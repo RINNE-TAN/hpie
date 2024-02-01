@@ -44,6 +44,7 @@ eval (App f arg) = do
   argV <- eval arg
   doApply fV argV
 eval (Sigma x a b) = VSigma x <$> eval a <*> close (x, b)
+eval (Pair a b) = VSigma "_" <$> eval a <*> close ("_", b)
 eval (Cons l r) = VCons <$> eval l <*> eval r
 eval (First p) = eval p >>= doFirst
 eval (Second p) = eval p >>= doSecond
