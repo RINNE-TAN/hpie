@@ -43,13 +43,13 @@ data Term
   | Lam Symbol Term -- λ(x) t
   | App Term Term -- f arg
   | Sigma Symbol Term Term -- Σ(x:A) D
-  | Cons Term Term -- ons l r
-  | First Term -- first p
-  | Second Term -- second p
+  | Cons Term Term -- (l, r)
+  | First Term -- First p
+  | Second Term -- Second p
   | Nat -- Nat
   | Zero -- Zero
   | Succ Term -- Succ n
-  -- ind-nat target mot base step
+  -- IndNat target mot base step
   -- target : Nat
   -- mot : Nat -> U
   -- base : mot Zero

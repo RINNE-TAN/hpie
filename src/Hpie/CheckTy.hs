@@ -16,8 +16,8 @@ reify = toCtxWorker . Norm.reify
 evalInEnv :: Env Value -> Term -> CtxWorker Value
 evalInEnv env t = toCtxWorker (Norm.withEnv env (Norm.eval t))
 
-doSecond :: Value -> CtxWorker Value
-doSecond = toCtxWorker . Norm.doSecond
+doFirst :: Value -> CtxWorker Value
+doFirst = toCtxWorker . Norm.doFirst
 
 doApply :: Value -> Value -> CtxWorker Value
 doApply f arg = toCtxWorker $ Norm.doApply f arg
@@ -67,8 +67,8 @@ infer (Second p) = do
   pV <- eval p
   case pTy of
     (VSigma _ _ closure) -> do
-      secondV <- doSecond pV
-      doApplyClosure closure secondV
+      firstV <- doFirst pV
+      doApplyClosure closure firstV
     _ -> failCheck
 infer Nat = return VU
 infer (IndNat target mot base step) = do

@@ -81,3 +81,12 @@ Vec3 :: Vec three Nat.
 Vec3 = pushVec two Vec2 two.
 
 Vec3 === toVec three : Vec three Nat.
+
+ptest :: Σ(x:Nat) Vec x Nat.
+ptest = (Zero, vecNil Nat).
+
+firstTest :: Nat.
+firstTest = First ptest.
+
+secondTest :: Vec Zero Nat.
+secondTest = Second ptest.

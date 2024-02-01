@@ -123,7 +123,6 @@ keywords =
     "Π",
     "Σ",
     "->",
-    "Cons",
     "First",
     "Second",
     "Nat",
@@ -184,8 +183,7 @@ pApp = do
   list <- many1 pAtom
   return $ foldl1 App list
 
-pCons, pFirst, pSecond, pSucc, pIndNat :: Parser Term
-pCons = kw "Cons" *> (Cons <$> pAtom <*> pAtom)
+pFirst, pSecond, pSucc, pIndNat :: Parser Term
 pFirst = kw "First" *> (First <$> pAtom)
 pSecond = kw "Second" *> (Second <$> pAtom)
 pSucc = kw "Succ" *> (Succ <$> pAtom)
@@ -195,8 +193,7 @@ pApply :: Parser Term
 pApply =
   foldr1
     (<|>)
-    [ pCons,
-      pFirst,
+    [ pFirst,
       pSecond,
       pSucc,
       pIndNat
@@ -210,7 +207,7 @@ pArrow = do
     f arrowHead Nothing = return arrowHead
     f arrowHead (Just _) = Arrow arrowHead <$> pTerm
 
-pPi, pLam, pSigma :: Parser Term
+pPi, pLam, pSigma, pCons :: Parser Term
 pPi = do
   _ <- kw "Π"
   (x, a) <- parens ((ident <* token ':') +++ pTerm)
@@ -222,7 +219,8 @@ pLam = do
 pSigma = do
   _ <- kw "Σ"
   (x, a) <- parens ((ident <* token ':') +++ pTerm)
-  Pi x a <$> pTerm
+  Sigma x a <$> pTerm
+pCons = parens (Cons <$> (pTerm <* token ',') <*> pTerm)
 
 pTerm :: Parser Term
 pTerm =
@@ -231,5 +229,6 @@ pTerm =
     [ pPi,
       pLam,
       pSigma,
+      pCons,
       pArrow
     ]
