@@ -12,6 +12,9 @@ failCheck expected got = do
   gotNorm <- reify got
   failWithError $ TypeMissMatch expected (show gotNorm)
 
+fresh :: Symbol -> CtxWorker Symbol
+fresh = toCtxWorker . Norm.fresh
+
 eval :: Term -> CtxWorker Value
 eval = toCtxWorker . Norm.eval
 
@@ -111,8 +114,9 @@ infer other = failWithError $ CanNotInfer (show other)
 check :: Term -> Value -> CtxWorker ()
 check (Lam x t) fTy = case fTy of
   (VPi _ aT closure) -> do
-    tT <- doApplyClosure closure (VNeutral (NVar x))
-    extendCtx x (IsA aT) (check t tT)
+    y <- fresh x
+    tT <- doApplyClosure closure (VNeutral (NVar y))
+    extendCtx y (IsA aT) (check t tT)
   _ -> failCheck "Pi Type" fTy
 check (Cons first second) pTy = case pTy of
   (VSigma _ aT closure) -> do

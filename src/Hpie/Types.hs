@@ -35,7 +35,7 @@ lookV (Env ((s, v) : e)) k
 extend :: Env a -> (Symbol, a) -> Env a
 extend (Env e) p = Env (p : e)
 
-data Closure = Closure (Env Value) (Symbol, Term)
+data Closure = Closure (Env Value) Symbol Term
   deriving (Show)
 
 data Term
@@ -68,7 +68,7 @@ instance Show Term where
       else printf "Π(%s: %s) %s" x (show a) (show b)
   show (Arrow a b) = printf "%s -> %s" (show a) (show b)
   show (Lam x t) = printf "λ(%s) %s" (show x) (show t)
-  show (App f arg) = printf "%s %s" (show f) (show arg)
+  show (App f arg) = printf "(%s %s)" (show f) (show arg)
   show (Sigma x a b) =
     if x == "_"
       then show (Pair a b)

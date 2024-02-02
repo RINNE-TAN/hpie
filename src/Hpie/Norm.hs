@@ -24,22 +24,22 @@ withEnv e (Worker n) = Worker (\_ -> n e)
 var :: Symbol -> Worker Value
 var s = Worker (\env _ -> lookV env s)
 
-close :: (Symbol, Term) -> Worker Closure
-close p = do
+close :: Symbol -> Term -> Worker Closure
+close s t = do
   e <- getEnv
-  return $ Closure e p
+  return $ Closure e s t
 
 eval :: Term -> Worker Value
 eval (Var s) = var s
-eval (Pi x a b) = VPi x <$> eval a <*> close (x, b)
-eval (Arrow a b) = VPi "_" <$> eval a <*> close ("_", b)
-eval (Lam x t) = VLam x <$> close (x, t)
+eval (Pi x a b) = VPi x <$> eval a <*> close x b
+eval (Arrow a b) = VPi "_" <$> eval a <*> close "_" b
+eval (Lam x t) = VLam x <$> close x t
 eval (App f arg) = do
   fV <- eval f
   argV <- eval arg
   doApply fV argV
-eval (Sigma x a b) = VSigma x <$> eval a <*> close (x, b)
-eval (Pair a b) = VSigma "_" <$> eval a <*> close ("_", b)
+eval (Sigma x a b) = VSigma x <$> eval a <*> close x b
+eval (Pair a b) = VSigma "_" <$> eval a <*> close "_" b
 eval (Cons l r) = VCons <$> eval l <*> eval r
 eval (First p) = eval p >>= doFirst
 eval (Second p) = eval p >>= doSecond
@@ -55,7 +55,7 @@ eval (IndNat target mot base step) = do
 eval U = return VU
 
 doApplyClosure :: Closure -> Value -> Worker Value
-doApplyClosure (Closure env (s, t)) arg = withEnv (extend env (s, arg)) (eval t)
+doApplyClosure (Closure env s t) arg = withEnv (extend env (s, arg)) (eval t)
 
 doApply :: Value -> Value -> Worker Value
 doApply (VLam _ closure) arg = doApplyClosure closure arg
@@ -82,8 +82,7 @@ doSecond (VNeutral ne) = return $ VNeutral (NSecond ne)
 reifyClosure :: Symbol -> Closure -> Worker (Symbol, Term)
 reifyClosure x closure = do
   y <- fresh x
-  let yVal = VNeutral (NVar y)
-  bV <- doApplyClosure closure yVal
+  bV <- doApplyClosure closure (VNeutral (NVar y))
   bT <- inBound y (reify bV)
   return (y, bT)
 
