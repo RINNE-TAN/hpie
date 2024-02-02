@@ -4,8 +4,13 @@ import qualified Hpie.AlphaEq as AlphaEq
 import qualified Hpie.Norm as Norm
 import Hpie.Types
 
-failCheck :: CtxWorker a
-failCheck = CtxWorker (\_ -> Left ())
+failWithError :: RuntimeError -> CtxWorker a
+failWithError re = CtxWorker (\_ -> Left re)
+
+failCheck :: String -> Value -> CtxWorker a
+failCheck expected got = do
+  gotNorm <- reify got
+  failWithError $ TypeMissMatch expected (show gotNorm)
 
 eval :: Term -> CtxWorker Value
 eval = toCtxWorker . Norm.eval
@@ -51,7 +56,7 @@ infer (App f arg) = do
       _ <- check arg aT
       argV <- eval arg
       doApplyClosure closure argV
-    _ -> failCheck
+    _ -> failCheck "Pi Type" fTy
 infer (Sigma x a b) = do
   _ <- check a VU
   va <- eval a
@@ -65,7 +70,7 @@ infer (First p) = do
   pTy <- infer p
   case pTy of
     (VSigma _ aT _) -> return aT
-    _ -> failCheck
+    _ -> failCheck "Sigma Type" pTy
 infer (Second p) = do
   pTy <- infer p
   pV <- eval p
@@ -73,7 +78,7 @@ infer (Second p) = do
     (VSigma _ _ closure) -> do
       firstV <- doFirst pV
       doApplyClosure closure firstV
-    _ -> failCheck
+    _ -> failCheck "Sigma Type" pTy
 infer Nat = return VU
 infer (IndNat target mot base step) = do
   targetTy <- infer target
@@ -99,29 +104,29 @@ infer (IndNat target mot base step) = do
           )
       _ <- check step stepTy
       doApply motV targetV
-    _ -> failCheck
+    _ -> failCheck "Nat Type" targetTy
 infer U = return VU
-infer _ = failCheck
+infer other = failWithError $ CanNotInfer (show other)
 
 check :: Term -> Value -> CtxWorker ()
 check (Lam x t) fTy = case fTy of
   (VPi _ aT closure) -> do
     tT <- doApplyClosure closure (VNeutral (NVar x))
     extendCtx x (IsA aT) (check t tT)
-  _ -> failCheck
+  _ -> failCheck "Pi Type" fTy
 check (Cons first second) pTy = case pTy of
   (VSigma _ aT closure) -> do
     _ <- check first aT
     firstV <- eval first
     secondT <- doApplyClosure closure firstV
     check second secondT
-  _ -> failCheck
+  _ -> failCheck "Sigma Type" pTy
 check Zero nTy = case nTy of
   VNat -> return ()
-  _ -> failCheck
+  _ -> failCheck "Nat Type" nTy
 check (Succ n) nTy = case nTy of
   VNat -> check n VNat
-  _ -> failCheck
+  _ -> failCheck "Nat Type" nTy
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'
@@ -131,5 +136,5 @@ convert v1 v2 = do
   e1 <- reify v1
   e2 <- reify v2
   case AlphaEq.alphaEq e1 e2 of
-    Left () -> failCheck
+    Left e -> failWithError e
     Right () -> return ()

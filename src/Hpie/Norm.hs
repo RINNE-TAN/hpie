@@ -3,10 +3,10 @@ module Hpie.Norm where
 import Hpie.Types
 
 getEnv :: Worker (Env Value)
-getEnv = Worker const
+getEnv = Worker (\e _ -> Right e)
 
 getBound :: Worker [Symbol]
-getBound = Worker (\_ bound -> bound)
+getBound = Worker (\_ bound -> Right bound)
 
 inBound :: Symbol -> Worker a -> Worker a
 inBound x (Worker act) =
@@ -22,12 +22,7 @@ withEnv :: Env Value -> Worker Value -> Worker Value
 withEnv e (Worker n) = Worker (\_ -> n e)
 
 var :: Symbol -> Worker Value
-var s =
-  Worker
-    ( \env _ -> case lookV env s of
-        Left () -> error $ "not found var " ++ s
-        Right v -> v
-    )
+var s = Worker (\env _ -> lookV env s)
 
 close :: (Symbol, Term) -> Worker Closure
 close p = do

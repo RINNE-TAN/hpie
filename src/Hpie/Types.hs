@@ -1,5 +1,7 @@
 module Hpie.Types where
 
+import Text.Printf (printf)
+
 type Symbol = String
 
 freshen :: [Symbol] -> Symbol -> Symbol
@@ -19,13 +21,13 @@ newtype Env val = Env [(Symbol, val)]
   deriving (Show)
 
 instance Functor Env where
-  fmap f (Env e) = Env (fmap (\(a, b) -> (a, f b)) e)
+  fmap f (Env e) = Env ((\(a, b) -> (a, f b)) <$> e)
 
 initEnv :: Env a
 initEnv = Env []
 
-lookV :: Env a -> Symbol -> Either () a
-lookV (Env []) _ = Left ()
+lookV :: Env a -> Symbol -> Either RuntimeError a
+lookV (Env []) s = Left $ VarNotFound s
 lookV (Env ((s, v) : e)) k
   | k == s = Right v
   | otherwise = lookV (Env e) k
@@ -57,7 +59,30 @@ data Term
   -- step : Π(n:Nat) (mot n) -> (mot Succ n)
   | IndNat Term Term Term Term
   | U -- U
-  deriving (Show, Eq)
+
+instance Show Term where
+  show (Var x) = x
+  show (Pi x a b) =
+    if x == "_"
+      then show (Arrow a b)
+      else printf "Π(%s: %s) %s" x (show a) (show b)
+  show (Arrow a b) = printf "%s -> %s" (show a) (show b)
+  show (Lam x t) = printf "λ(%s) %s" (show x) (show t)
+  show (App f arg) = printf "%s %s" (show f) (show arg)
+  show (Sigma x a b) =
+    if x == "_"
+      then show (Pair a b)
+      else printf "Σ(%s: %s) %s" x (show a) (show b)
+  show (Pair a b) = printf "(Pair %s %s)" (show a) (show b)
+  show (Cons l r) = printf "(%s, %s)" (show l) (show r)
+  show (First p) = printf "(First %s)" (show p)
+  show (Second p) = printf "(Second %s)" (show p)
+  show Nat = "Nat"
+  show Zero = "Zero"
+  show (Succ n) = printf "(Succ %s)" (show n)
+  show (IndNat target mot base step) =
+    printf "(IndNat %s %s %s %s)" (show target) (show mot) (show base) (show step)
+  show U = "U"
 
 data Value
   = VPi Symbol Value Closure
@@ -80,25 +105,29 @@ data Neutral
   deriving (Show)
 
 newtype Worker a = Worker
-  { runWorker :: Env Value -> [Symbol] -> a
+  { runWorker :: Env Value -> [Symbol] -> Either RuntimeError a
   }
 
 instance Functor Worker where
-  fmap f (Worker n) = Worker (\env bound -> f (n env bound))
+  fmap f (Worker n) = Worker (\env bound -> f <$> n env bound)
 
 instance Applicative Worker where
-  pure a = Worker (\_ _ -> a)
-  (<*>) (Worker nab) (Worker na) = Worker (\env bound -> nab env bound (na env bound))
+  pure a = Worker (\_ _ -> Right a)
+  (<*>) (Worker nab) (Worker na) = Worker (\env bound -> nab env bound <*> na env bound)
 
 instance Monad Worker where
   (>>=) (Worker na) f =
-    Worker (\env bound -> runWorker (f (na env bound)) env bound)
+    Worker
+      ( \env bound -> case na env bound of
+          Left e -> Left e
+          Right r -> runWorker (f r) env bound
+      )
 
 data CtxEntry a = Def a a | IsA a
   deriving (Show)
 
 newtype CtxWorker a = CtxWorker
-  { runCtxWorker :: Env (CtxEntry Value) -> Either () a
+  { runCtxWorker :: Env (CtxEntry Value) -> Either RuntimeError a
   }
 
 instance Functor CtxWorker where
@@ -112,14 +141,12 @@ instance Monad CtxWorker where
   (>>=) (CtxWorker ckta) f =
     CtxWorker
       ( \ctx -> case ckta ctx of
-          Left () -> Left ()
+          Left e -> Left e
           Right r -> runCtxWorker (f r) ctx
       )
 
 toCtxWorker :: Worker a -> CtxWorker a
-toCtxWorker (Worker norm) = do
-  ctx <- getCtx
-  return $ norm (mkEnv ctx) []
+toCtxWorker (Worker norm) = CtxWorker (\ctx -> norm (mkEnv ctx) [])
 
 mkEnv :: Env (CtxEntry Value) -> Env Value
 mkEnv (Env []) = Env []
@@ -150,5 +177,35 @@ data TopLevelMsg
   = AddClaim Symbol Term
   | AddDefine Symbol Term Term
   | IsSame
-  | NotSame
+  | NotSame String
   deriving (Show)
+
+data ParserError
+  = EOF
+  | Unexpected String String
+  | Internal
+
+instance Show ParserError where
+  show EOF = "expected input but got eof"
+  show (Unexpected expect got) = "expected: " ++ expect ++ " but got: " ++ got
+  show Internal = "internal error in parser"
+
+data RuntimeError
+  = TypeMissMatch String String
+  | AlphaNotEq String String
+  | CanNotInfer String
+  | VarNotFound String
+
+instance Show RuntimeError where
+  show (TypeMissMatch l r) = "type missmatch, expect: " ++ l ++ " but got: " ++ r
+  show (AlphaNotEq l r) = l ++ " is not eq with " ++ r
+  show (CanNotInfer t) = "can not infer term: " ++ t
+  show (VarNotFound v) = "var not found: " ++ v
+
+data TopLevelError
+  = RuntimeError RuntimeError
+  | ParserError ParserError
+
+instance Show TopLevelError where
+  show (RuntimeError re) = "Runtime Error\n" ++ show re
+  show (ParserError pe) = "Parser Error\n" ++ show pe

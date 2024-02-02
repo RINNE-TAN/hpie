@@ -1,14 +1,10 @@
 module Hpie.Parser where
 
-import Data.Char
 import Data.Functor
 import GHC.Base (Alternative (..))
-import Hpie.Types (Symbol, Term (..), TopLevel (..))
+import Hpie.Types
 
 type Input = String
-
-data ParserError = EOF | Unexpected String | Internal
-  deriving (Show, Eq)
 
 newtype Parser a = Parser
   { runParser :: Input -> Either ParserError (Input, a)
@@ -48,7 +44,7 @@ eof :: Parser ()
 eof = spaces *> Parser f
   where
     f [] = return ("", ())
-    f s = Left $ Unexpected s
+    f s = Left $ Unexpected "eof" s
 
 many0 :: Parser a -> Parser [a]
 many0 p = many1 p <|> return []
@@ -74,26 +70,26 @@ ws = char ' ' <|> char '\n' <|> char '\r' <|> char '\t'
 spaces :: Parser ()
 spaces = many0 ws $> ()
 
-charHelper :: (Char -> Bool) -> Parser Char
-charHelper f = Parser go
+charHelper :: [Char] -> Parser Char
+charHelper expected = Parser go
   where
     go [] = Left EOF
     go (c : cs) =
-      if f c
+      if c `elem` expected
         then Right (cs, c)
-        else Left $ Unexpected (c : cs)
+        else Left $ Unexpected expected (c : cs)
 
 char :: Char -> Parser ()
-char ch = charHelper (== ch) $> ()
+char ch = charHelper [ch] $> ()
 
 alpha :: Parser Char
-alpha = charHelper isAlpha
+alpha = charHelper (['a' .. 'z'] ++ ['A' .. 'Z'])
 
 number :: Parser Char
-number = charHelper isNumber
+number = charHelper ['0' .. '9']
 
 underline :: Parser Char
-underline = charHelper (== '_')
+underline = charHelper ['_']
 
 idChar :: Parser Char
 idChar = alpha <|> number <|> underline
@@ -104,7 +100,7 @@ ident = do
   idTail <- many0 idChar
   let s = idHead : idTail
   if s `elem` keywords
-    then failure (Unexpected s)
+    then failure (Unexpected "ident" s)
     else return s
 
 string :: String -> Parser ()

@@ -7,7 +7,7 @@ import Hpie.Parser
 import Hpie.Types
 
 newtype TopCtxWorker a = TopCtxWorker
-  { runTopCtxWorker :: Env (CtxEntry Value) -> Either () (Env (CtxEntry Value), a)
+  { runTopCtxWorker :: Env (CtxEntry Value) -> Either TopLevelError (Env (CtxEntry Value), a)
   }
 
 instance Functor TopCtxWorker where
@@ -33,7 +33,7 @@ instance Monad TopCtxWorker where
 
 topLevelMain :: String -> [TopLevelMsg]
 topLevelMain s = case runTopCtxWorker (topLevel s) (Env []) of
-  Left () -> error ""
+  Left e -> error $ show e
   Right (_, v) -> v
 
 parser :: String -> Parser a -> TopCtxWorker a
@@ -53,7 +53,9 @@ addDef s e =
 ctxWorker :: CtxWorker a -> TopCtxWorker a
 ctxWorker ctx =
   TopCtxWorker
-    ( \e -> (\x -> (e, x)) <$> runCtxWorker ctx e
+    ( \e -> case runCtxWorker ctx e of
+        Left re -> Left $ RuntimeError re
+        Right res -> Right (e, res)
     )
 
 worker :: Worker a -> TopCtxWorker a
@@ -94,7 +96,7 @@ runOne (CheckSame ty e1 e2) = do
   _ <- check e1Norm tyV
   _ <- check e2Norm tyV
   case AlphaEq.alphaEq e1Norm e2Norm of
-    Left () -> return NotSame
+    Left re -> return $ NotSame (show re)
     Right () -> return IsSame
 
 topLevel :: String -> TopCtxWorker [TopLevelMsg]
