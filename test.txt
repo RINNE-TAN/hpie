@@ -1,98 +1,108 @@
-mot :: Nat -> U.
-mot = λ(x) Nat.
+cN :: U.
+cN = Π(X:U) (X -> X) -> X -> X.
 
-step :: Nat -> Nat -> Nat.
-step = λ(cur) λ(last) Succ last.
+cZ :: cN.
+cZ = λ(X) λ(s) λ(z) z.
 
-plus :: Nat -> Nat -> Nat.
-plus = λ(left) λ(right) (IndNat left mot right step).
+cS :: cN -> cN.
+cS = λ(x) λ(X) λ(s) λ(z) s (x X s z).
 
-x :: Nat.
-x = plus (Succ Zero) (Succ (Succ Zero)).
+cNInd :: cN -> U.
+cNInd = λ(x) Π(P:cN -> U)
+    (Π(x:cN) P x -> P (cS x)) -> (P cZ)
+    -> P x.
 
-idty :: U.
-idty = Π(ty:U) ty -> ty.
+N :: U.
+N = Σ(x:cN) cNInd x.
 
-id :: idty.
-id = λ(ty) λ(x) x.
+Z :: N.
+Z = (
+    cZ, 
+    λ(p) λ(pcS) λ(pcZ) pcZ
+).
 
-id === id idty id : idty.
+S :: N -> N.
+S = λ(x) (
+    cS (First x), 
+    λ(p) λ(pcS) λ(pcZ) 
+        pcS (First x) ((Second x) p pcS pcZ) 
+).
 
-nNat :: U.
-nZero :: nNat.
-nSucc :: nNat -> nNat.
+cVec :: N -> U -> U.
+cVec = λ(n) λ(A) Π(L:U) (A -> L -> L) -> L -> L.
 
-two :: nNat.
-two = nSucc (nSucc nZero).
+cNil :: Π(A:U) cVec Z A.
+cNil = λ(A) λ(L) λ(cons) λ(nil) nil.
 
-one :: nNat.
-one = nSucc nZero.
+cCons :: Π(n:N) Π(A:U) A -> cVec n A -> cVec (S n) A. 
+cCons = λ(n) λ(A) λ(x) λ(xs) 
+            λ(L) λ(cons) λ(nil)
+                cons x (xs L cons nil)
+.
+cVecInd :: Π(n:N) Π(A:U) cVec n A -> U.
+cVecInd = λ(n) λ(A) λ(vecs) 
+            Π(P:Π(n:N) cVec n A -> U)
+                (
+                    Π(n:N) Π(x:A) Π(xs:cVec n A) 
+                        P n xs -> P (S n) (cCons n A x xs)
+                ) ->  (P Z (cNil A)) 
+                    ->  P n vecs
+.
 
-two === (nSucc one) : nNat.
+Vec :: N -> U -> U.
+Vec = λ(n) λ(A) Σ(x:cVec n A) cVecInd n A x.
 
-List :: U -> U.
-nil :: Π(ty:U) List ty.
-cons :: Π(ty:U) ty -> List ty -> List ty.
+Nil :: Π(A:U) Vec Z A.
+Nil = λ(A) (cNil A, λ(p) λ(pcons) λ(pnil) pnil).
 
-empty :: List Nat.
-empty = nil Nat.
+Cons :: Π(n:N) Π(A:U) A -> Vec n A -> Vec (S n) A.
+Cons = λ(n) λ(A) λ(x) λ(xs)
+            (
+                cCons n A x (First xs),
+                λ(p) λ(pcons) λ(pnil) 
+                    pcons n x (First xs) ((Second xs) p pcons pnil)
+            )
+.
 
-push :: List Nat -> Nat -> List Nat.
-push = λ(xs) λ(x) cons Nat x xs.
+plusMot :: cN -> U.
+plusMot = λ(n) N.
 
-list_example :: List Nat.
-list_example = push empty Zero.
+plusStep :: Π(x:cN) N -> N.
+plusStep = λ(x) λ(n) S n.
 
-Vec :: Nat -> U -> U.
-vecNil :: Π(ty:U) Vec Zero ty.
-vecCons :: Π(n:Nat) Π(ty:U) ty -> Vec n ty -> Vec (Succ n) ty.
+plus :: N -> N -> N.
+plus = λ(left) λ(right)
+        (Second left) plusMot plusStep right
+.
 
-emptyVec :: Vec Zero Nat.
-emptyVec = vecNil Nat.
+sumMot :: Π(n:N) cVec n N -> U.
+sumMot = λ(n) λ(xs) N.
 
-pushVec :: Π(n:Nat) Vec n Nat -> Nat -> Vec (Succ n) Nat.
-pushVec = λ(n) λ(xs) λ (x) vecCons n Nat x xs.
+sumStep :: Π(n:N) Π(x:N) Π(xs:cVec n N) 
+                        N -> N.
+sumStep = λ(n) λ(x) λ(xs) 
+            λ(last) plus last x.
 
-vecMot :: Nat -> U.
-vecMot = λ(n) Vec n Nat.
+sum :: Π(n:N) Vec n N -> N.
+sum = λ(n) λ(vecs) (Second vecs) sumMot sumStep Z.
 
-stepMot :: Π(n:Nat) vecMot n -> vecMot (Succ n).
-stepMot = λ(n) λ(xs) pushVec n xs n.
+push :: Π(n:N) Vec n N -> Vec (S n) N.
+push = λ(n) λ(xs) Cons n N n xs. 
 
-toVec :: Π(n:Nat) Vec n Nat.
-toVec = λ(n) IndNat n vecMot emptyVec stepMot.
+empty :: Vec Z N.
+empty = Nil N.
 
-one :: Nat.
-one = Succ Zero.
+Vec1 :: Vec (S Z) N.
+Vec1 = push Z empty.
 
-two :: Nat.
-two = Succ one.
+Vec2 :: Vec (S (S Z)) N.
+Vec2 = push (S Z) Vec1.
 
-three :: Nat.
-three = Succ two.
+Vec3 :: Vec (S (S (S Z))) N.
+Vec3 = push (S (S Z)) Vec2.
 
-Vec1 :: Vec one Nat.
-Vec1 = pushVec Zero emptyVec Zero.
+Vec4 :: Vec (S (S (S (S Z)))) N.
+Vec4 = push (S (S (S Z))) Vec3.
 
-Vec2 :: Vec two Nat.
-Vec2 = pushVec one Vec1 one.
-
-Vec3 :: Vec three Nat.
-Vec3 = pushVec two Vec2 two.
-
-Vec3 === toVec three : Vec three Nat.
-
-ptest :: Σ(x:Nat) Vec x Nat.
-ptest = (Zero, vecNil Nat).
-
-firstTest :: Nat.
-firstTest = First ptest.
-
-secondTest :: Vec Zero Nat.
-secondTest = Second ptest.
-
-pNat :: Pair Nat Nat.
-pNat = (Zero, Succ Zero).
-
-Zero === First pNat : Nat.
-Succ Zero === Second pNat : Nat.
+S (S (S (S (S Z)))) === plus (S (S (S Z))) (S (S Z)) : N.
+sum (S (S (S (S Z)))) Vec4 === (S (S (S (S (S (S Z)))))) : N.
