@@ -1,51 +1,3 @@
-cAbsurd :: U.
-cAbsurd = Π(A:U) A.
-
-cIndAbsurd :: cAbsurd -> U.
-cIndAbsurd = λ(a) Π(P:cAbsurd -> U)
-                P a.
-Absurd :: U.
-Absurd = Σ(a:cAbsurd) cIndAbsurd a.
-
-cTrivial :: U.
-cTrivial = Π(T:U) T -> T.
-
-cSole :: cTrivial.
-cSole = λ(T) λ(sole) sole.
-
-cIndTrivial :: cTrivial -> U.
-cIndTrivial = λ(t) Π(P:cTrivial -> U)
-                P cSole -> P t.
-
-Trivial :: U.
-Trivial = Σ(t:cTrivial) cIndTrivial t.
-
-Sole :: Trivial.
-Sole = (cSole, λ(p) λ(psole) psole).
-
-cBool :: U.
-cBool = Π(B:U) B -> B -> B.
-
-cTrue :: cBool.
-cTrue = λ(b) λ(false) λ(true) true.
-
-cFalse :: cBool.
-cFalse = λ(b) λ(false) λ(true) false.
-
-cIndBool :: cBool -> U.
-cIndBool = λ(b) Π(P:cBool -> U)
-            P cFalse -> P cTrue 
-                -> P b.
-
-Bool :: U.
-Bool = Σ(x:cBool) cIndBool x.
-
-True :: Bool.
-True = (cTrue, λ(p) λ(pfalse) λ(ptrue) ptrue).
-
-False :: Bool.
-False = (cFalse, λ(p) λ(pfalse) λ(ptrue) pfalse).
-
 cW :: Π(S:U) (S -> U) -> U.
 cW = λ(S) λ(P) 
     Π(W:U) (Π(s:S) (P s -> W) -> W) -> W.
@@ -79,15 +31,28 @@ Sup = λ(S) λ(P) λ(s) λ(f)
         )
 .
 PN :: Bool -> U.
-PN = λ(b) (Second b) (λ(b) U) Absurd Trivial.
+PN = λ(b) IndBool b (λ(b) U) Absurd Trivial.
 
 N :: U.
 N = W Bool PN.
 
 Z :: N.
 Z = Sup Bool PN
-    False (λ(absurd) (Second absurd) (λ(absurd) N)).
+    False (λ(absurd) IndAbsurd absurd N).
 
 S :: N -> N.
 S = λ(n) Sup Bool PN
     True (λ(trivial) n).
+
+plusMot :: cW Bool PN -> U.
+plusMot = λ(n) N.
+
+plus :: N -> N -> N.
+plus = λ(left) λ(right)
+        (Second left) plusMot (
+            λ(s) λ(f) IndBool s (λ(s) (PN s -> N) -> N)
+                (λ(child) right)
+                (λ(child) S(child Sole))
+        )
+.
+plus (S Z) (S Z) === S (S Z) : N.

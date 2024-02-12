@@ -58,10 +58,15 @@ eq left right =
       eq l1 l2 *> eq r1 r2
     (First p1, First p2) -> eq p1 p2
     (Second p1, Second p2) -> eq p1 p2
-    (Nat, Nat) -> yes
-    (Zero, Zero) -> yes
-    (Succ n1, Succ n2) -> eq n1 n2
-    (IndNat target1 mot1 base1 step1, IndNat target2 mot2 base2 step2) ->
-      eq target1 target2 *> eq mot1 mot2 *> eq base1 base2 *> eq step1 step2
+    (Trivial, Trivial) -> yes
+    (Sole, Sole) -> yes
+    (Absurd, Absurd) -> yes
+    (IndAbsurd target1 mot1, IndAbsurd target2 mot2) ->
+      eq target1 target2 *> eq mot1 mot2
+    (Bool, Bool) -> yes
+    (T, T) -> yes
+    (F, F) -> yes
+    (IndBool target1 mot1 fBase1 tBase1, IndBool target2 mot2 fBase2 tBase2) ->
+      eq target1 target2 *> eq mot1 mot2 *> eq fBase1 fBase2 *> eq tBase1 tBase2
     (U, U) -> yes
     (l, r) -> no l r

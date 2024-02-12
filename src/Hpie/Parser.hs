@@ -122,10 +122,14 @@ keywords =
     "Pair",
     "First",
     "Second",
-    "Nat",
-    "Zero",
-    "Succ",
-    "IndNat",
+    "Trivial",
+    "Sole",
+    "Absurd",
+    "IndAbsurd",
+    "Bool",
+    "True",
+    "False",
+    "IndBool",
     "U",
     "::",
     "==="
@@ -156,23 +160,31 @@ pDefine :: Parser TopLevel
 pDefine = Define <$> (ident <* token '=') <*> pTerm
 
 -- Atom
-pNat, pZero, pU, pVar, pParens :: Parser Term
-pNat = kw "Nat" $> Nat
-pZero = kw "Zero" $> Zero
+pU, pVar, pParens, pTrivial, pSole, pAbsurd, pBool, pTrue, pFalse :: Parser Term
 pU = kw "U" $> U
 pVar = Var <$> ident
 pParens = parens pTerm
+pTrivial = kw "Trivial" $> Trivial
+pSole = kw "Sole" $> Sole
+pAbsurd = kw "Absurd" $> Absurd
+pBool = kw "Bool" $> Bool
+pTrue = kw "True" $> T
+pFalse = kw "False" $> F
 
 pAtom :: Parser Term
 pAtom =
   spaces
     *> foldr1
       (<|>)
-      [ pNat,
-        pZero,
-        pU,
+      [ pU,
         pVar,
-        pParens
+        pParens,
+        pTrivial,
+        pSole,
+        pAbsurd,
+        pBool,
+        pTrue,
+        pFalse
       ]
 
 pApp :: Parser Term
@@ -180,12 +192,12 @@ pApp = do
   list <- many1 pAtom
   return $ foldl1 App list
 
-pPair, pFirst, pSecond, pSucc, pIndNat :: Parser Term
+pPair, pFirst, pSecond, pIndAbsurd, pIndBool :: Parser Term
 pPair = kw "Pair" *> (Pair <$> pAtom <*> pAtom)
 pFirst = kw "First" *> (First <$> pAtom)
 pSecond = kw "Second" *> (Second <$> pAtom)
-pSucc = kw "Succ" *> (Succ <$> pAtom)
-pIndNat = kw "IndNat" *> (IndNat <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
+pIndAbsurd = kw "IndAbsurd" *> (IndAbsurd <$> pAtom <*> pAtom)
+pIndBool = kw "IndBool" *> (IndBool <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
 
 pApply :: Parser Term
 pApply =
@@ -194,8 +206,8 @@ pApply =
     [ pPair,
       pFirst,
       pSecond,
-      pSucc,
-      pIndNat
+      pIndAbsurd,
+      pIndBool
     ]
 
 pArrow :: Parser Term

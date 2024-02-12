@@ -82,32 +82,24 @@ infer (Second p) = do
       firstV <- doFirst pV
       doApplyClosure closure firstV
     _ -> failCheck "Sigma Type" pTy
-infer Nat = return VU
-infer (IndNat target mot base step) = do
-  targetTy <- infer target
+infer Trivial = return VU
+infer Absurd = return VU
+infer (IndAbsurd target mot) = do
+  _ <- check target VAbsurd
+  _ <- check mot VU
+  eval mot
+infer Bool = return VU
+infer (IndBool target mot fBase tBase) = do
+  _ <- check target VBool
   targetV <- eval target
-  case targetTy of
-    VNat -> do
-      motTy <- eval (Pi "x" Nat U)
-      _ <- check mot motTy
-      motV <- eval mot
-      baseTy <- doApply motV VZero
-      _ <- check base baseTy
-      stepTy <-
-        evalInEnv
-          (Env [("mot", motV)])
-          ( Pi
-              "n"
-              Nat
-              ( Pi
-                  "almost"
-                  (App (Var "mot") (Var "n"))
-                  (App (Var "mot") (Succ (Var "n")))
-              )
-          )
-      _ <- check step stepTy
-      doApply motV targetV
-    _ -> failCheck "Nat Type" targetTy
+  motTy <- eval (Pi "b" Bool U)
+  _ <- check mot motTy
+  motV <- eval mot
+  fBaseTy <- doApply motV VF
+  _ <- check fBase fBaseTy
+  tBaseTy <- doApply motV VT
+  _ <- check tBase tBaseTy
+  doApply motV targetV
 infer U = return VU
 infer other = failWithError $ CanNotInfer (show other)
 
@@ -125,12 +117,15 @@ check (Cons first second) pTy = case pTy of
     secondT <- doApplyClosure closure firstV
     check second secondT
   _ -> failCheck "Sigma Type" pTy
-check Zero nTy = case nTy of
-  VNat -> return ()
-  _ -> failCheck "Nat Type" nTy
-check (Succ n) nTy = case nTy of
-  VNat -> check n VNat
-  _ -> failCheck "Nat Type" nTy
+check Sole tTy = case tTy of
+  VTrivial -> return ()
+  _ -> failCheck "Trivial Type" tTy
+check T bTy = case bTy of
+  VBool -> return ()
+  _ -> failCheck "Bool Type" bTy
+check F bTy = case bTy of
+  VBool -> return ()
+  _ -> failCheck "Bool Type" bTy
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'

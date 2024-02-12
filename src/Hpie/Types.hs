@@ -49,15 +49,24 @@ data Term
   | Cons Term Term -- (l, r)
   | First Term -- First p
   | Second Term -- Second p
-  | Nat -- Nat
-  | Zero -- Zero
-  | Succ Term -- Succ n
-  -- IndNat target mot base step
-  -- target : Nat
-  -- mot : Nat -> U
-  -- base : mot Zero
-  -- step : Π(n:Nat) (mot n) -> (mot Succ n)
-  | IndNat Term Term Term Term
+  | Trivial -- Trivial
+  | Sole -- Sole
+  | Absurd -- Absurd
+  -- IndAbsurd
+  -- target : Absurd
+  -- mot : U
+  -- -> mot
+  | IndAbsurd Term Term
+  | Bool -- Bool
+  | T -- True
+  | F -- False
+  -- IndBool
+  -- target : Bool
+  -- mot : Bool -> U
+  -- fBase : mot False
+  -- tBase : mot True
+  -- -> mot target
+  | IndBool Term Term Term Term
   | U -- U
 
 instance Show Term where
@@ -77,11 +86,15 @@ instance Show Term where
   show (Cons l r) = printf "(%s, %s)" (show l) (show r)
   show (First p) = printf "(First %s)" (show p)
   show (Second p) = printf "(Second %s)" (show p)
-  show Nat = "Nat"
-  show Zero = "Zero"
-  show (Succ n) = printf "(Succ %s)" (show n)
-  show (IndNat target mot base step) =
-    printf "(IndNat %s %s %s %s)" (show target) (show mot) (show base) (show step)
+  show Trivial = "Trivial"
+  show Sole = "Sole"
+  show Absurd = "Absurd"
+  show (IndAbsurd target mot) = printf "IndAbsurd %s %s" (show target) (show mot)
+  show Bool = "Bool"
+  show T = "True"
+  show F = "False"
+  show (IndBool target mot fBase tBase) =
+    printf "IndBool %s %s %s %s" (show target) (show mot) (show fBase) (show tBase)
   show U = "U"
 
 data Value
@@ -89,9 +102,12 @@ data Value
   | VLam Symbol Closure
   | VSigma Symbol Value Closure
   | VCons Value Value
-  | VNat
-  | VZero
-  | VSucc Value
+  | VTrivial
+  | VSole
+  | VAbsurd
+  | VBool
+  | VT
+  | VF
   | VU
   | VNeutral Neutral
   deriving (Show)
@@ -101,7 +117,8 @@ data Neutral
   | NApp Neutral Value
   | NFirst Neutral
   | NSecond Neutral
-  | NIndNat Neutral Value Value Value
+  | NIndAbsurd Neutral Value
+  | NIndBool Neutral Value Value Value
   deriving (Show)
 
 newtype Worker a = Worker

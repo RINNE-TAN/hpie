@@ -43,15 +43,22 @@ eval (Pair a b) = VSigma "_" <$> eval a <*> close "_" b
 eval (Cons l r) = VCons <$> eval l <*> eval r
 eval (First p) = eval p >>= doFirst
 eval (Second p) = eval p >>= doSecond
-eval Nat = return VNat
-eval Zero = return VZero
-eval (Succ n) = VSucc <$> eval n
-eval (IndNat target mot base step) = do
+eval Trivial = return VTrivial
+eval Sole = return VSole
+eval Absurd = return VAbsurd
+eval (IndAbsurd target mot) = do
   targetV <- eval target
   motV <- eval mot
-  baseV <- eval base
-  stepV <- eval step
-  doIndNat targetV motV baseV stepV
+  doIndAbsurd targetV motV
+eval Bool = return VBool
+eval T = return VT
+eval F = return VF
+eval (IndBool target mot fBase tBase) = do
+  targetV <- eval target
+  motV <- eval mot
+  fBaseV <- eval fBase
+  tBaseV <- eval tBase
+  doIndBool targetV motV fBaseV tBaseV
 eval U = return VU
 
 doApplyClosure :: Closure -> Value -> Worker Value
@@ -62,15 +69,6 @@ doApply (VLam _ closure) arg = doApplyClosure closure arg
 doApply (VNeutral ne) arg = return $ VNeutral (NApp ne arg)
 doApply f arg = error $ "fun is " ++ show f ++ "\n" ++ "arg is " ++ show arg
 
-doIndNat :: Value -> Value -> Value -> Value -> Worker Value
-doIndNat VZero _ base _ = return base
-doIndNat (VSucc n) mot base step = do
-  stepV <- doIndNat n mot base step
-  applyN <- doApply step n
-  doApply applyN stepV
-doIndNat (VNeutral ne) mot base step =
-  return $ VNeutral (NIndNat ne mot base step)
-
 doFirst :: Value -> Worker Value
 doFirst (VCons l _) = return l
 doFirst (VNeutral ne) = return $ VNeutral (NFirst ne)
@@ -78,6 +76,14 @@ doFirst (VNeutral ne) = return $ VNeutral (NFirst ne)
 doSecond :: Value -> Worker Value
 doSecond (VCons _ r) = return r
 doSecond (VNeutral ne) = return $ VNeutral (NSecond ne)
+
+doIndAbsurd :: Value -> Value -> Worker Value
+doIndAbsurd (VNeutral ne) mot = return $ VNeutral (NIndAbsurd ne mot)
+
+doIndBool :: Value -> Value -> Value -> Value -> Worker Value
+doIndBool VT _ _ tBase = return tBase
+doIndBool VF _ fbase _ = return fbase
+doIndBool (VNeutral ne) mot fBase tBase = return $ VNeutral (NIndBool ne mot fBase tBase)
 
 reifyClosure :: Symbol -> Closure -> Worker (Symbol, Term)
 reifyClosure x closure = do
@@ -99,9 +105,12 @@ reify (VSigma x a closure) = do
   (y, bT) <- reifyClosure x closure
   return $ Sigma y aT bT
 reify (VCons l r) = Cons <$> reify l <*> reify r
-reify VNat = return Nat
-reify VZero = return Zero
-reify (VSucc n) = Succ <$> reify n
+reify VTrivial = return Trivial
+reify VSole = return Sole
+reify VAbsurd = return Absurd
+reify VBool = return Bool
+reify VT = return T
+reify VF = return F
 reify VU = return U
 reify (VNeutral neu) = reifyNeutral neu
 
@@ -110,9 +119,7 @@ reifyNeutral (NVar x) = return (Var x)
 reifyNeutral (NApp f arg) = App <$> reifyNeutral f <*> reify arg
 reifyNeutral (NFirst p) = First <$> reifyNeutral p
 reifyNeutral (NSecond p) = Second <$> reifyNeutral p
-reifyNeutral (NIndNat target mot base step) =
-  IndNat
-    <$> reifyNeutral target
-    <*> reify mot
-    <*> reify base
-    <*> reify step
+reifyNeutral (NIndAbsurd target mot) =
+  IndAbsurd <$> reifyNeutral target <*> reify mot
+reifyNeutral (NIndBool target mot fBase tBase) =
+  IndBool <$> reifyNeutral target <*> reify mot <*> reify fBase <*> reify tBase

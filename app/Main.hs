@@ -4,5 +4,5 @@ import Hpie.TopLevel (topLevelMain)
 
 main :: IO ()
 main = do
-  input <- readFile "test.txt"
+  input <- readFile "W.txt"
   mapM_ print $ topLevelMain input

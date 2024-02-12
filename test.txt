@@ -106,3 +106,8 @@ Vec4 = push (S (S (S Z))) Vec3.
 
 S (S (S (S (S Z)))) === plus (S (S (S Z))) (S (S Z)) : N.
 sum (S (S (S (S Z)))) Vec4 === (S (S (S (S (S (S Z)))))) : N.
+
+trivial :: Trivial.
+trivial = Sole.
+absurd :: Absurd -> Trivial.
+absurd = λ(a) IndAbsurd a Trivial.
