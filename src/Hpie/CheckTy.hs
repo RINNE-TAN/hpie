@@ -100,6 +100,57 @@ infer (IndBool target mot fBase tBase) = do
   tBaseTy <- doApply motV VT
   _ <- check tBase tBaseTy
   doApply motV targetV
+infer (IndW target mot c) = do
+  wTy <- infer target
+  case wTy of
+    VW sTy pTy -> do
+      targetV <- eval target
+      motTy <-
+        evalInEnv
+          (Env [("WSP", wTy)])
+          (Arrow (Var "WSP") U)
+      _ <- check mot motTy
+      motV <- eval mot
+      cTy <-
+        evalInEnv
+          (Env [("S", sTy), ("P", pTy), ("WSP", wTy), ("mot", motV)])
+          ( Pi
+              "s"
+              (Var "S") -- Π(s:S)
+              ( Pi
+                  "f"
+                  ( Arrow
+                      (App (Var "P") (Var "s"))
+                      (Var "WSP")
+                  ) -- Π(f:P s -> W S P)
+                  ( Arrow -- ->
+                      ( Pi
+                          "p"
+                          (App (Var "P") (Var "s"))
+                          ( App
+                              (Var "mot")
+                              (App (Var "f") (Var "p"))
+                          )
+                      ) -- Π(p : P s) mot(f p)
+                      ( App
+                          (Var "mot")
+                          (Sup (Var "s") (Var "f"))
+                      ) -- mot (Sup s f)
+                  )
+              )
+          )
+      check c cTy
+      doApply motV targetV
+    _ -> failCheck "W Type" wTy
+infer (W s p) = do
+  _ <- check s VU
+  sV <- eval s
+  pTy <-
+    evalInEnv
+      (Env [("S", sV)])
+      (Arrow (Var "S") U)
+  _ <- check p pTy
+  return VU
 infer U = return VU
 infer other = failWithError $ CanNotInfer (show other)
 
@@ -126,6 +177,19 @@ check T bTy = case bTy of
 check F bTy = case bTy of
   VBool -> return ()
   _ -> failCheck "Bool Type" bTy
+check (Sup s f) wTy = case wTy of
+  (VW sTy pTy) -> do
+    _ <- check s sTy
+    sV <- eval s
+    fTy <-
+      evalInEnv
+        (Env [("P", pTy), ("s", sV), ("WSP", wTy)])
+        ( Arrow
+            (App (Var "P") (Var "s"))
+            (Var "WSP")
+        )
+    check f fTy
+  _ -> failCheck "Sup Type" wTy
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'

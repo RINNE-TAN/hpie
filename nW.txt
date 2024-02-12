@@ -1,0 +1,25 @@
+PN :: Bool -> U.
+PN = λ(b) IndBool b (λ(b) U) Absurd Trivial.
+
+N :: U.
+N = W Bool PN.
+
+Z :: N.
+Z = Sup False (λ(absurd) IndAbsurd absurd N).
+
+S :: N -> N.
+S = λ(n) Sup True (λ(trivial) n).
+
+plusMot :: N -> U.
+plusMot = λ(n) N.
+
+plus :: N -> N -> N.
+plus = λ(left) λ(right)
+        IndW left plusMot (
+            λ(s) λ(f) IndBool s (λ(s) (PN s -> N) -> N)
+                (λ(child) right)
+                (λ(child) S(child Sole))
+        )
+.
+
+plus (S Z) (S Z) === S (S Z) : N.

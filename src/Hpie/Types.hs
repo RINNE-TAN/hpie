@@ -52,21 +52,27 @@ data Term
   | Trivial -- Trivial
   | Sole -- Sole
   | Absurd -- Absurd
-  -- IndAbsurd
   -- target : Absurd
   -- mot : U
-  -- -> mot
-  | IndAbsurd Term Term
+  | IndAbsurd Term Term -- IndAbsurd target mot : mot
   | Bool -- Bool
   | T -- True
   | F -- False
-  -- IndBool
   -- target : Bool
   -- mot : Bool -> U
   -- fBase : mot False
   -- tBase : mot True
-  -- -> mot target
-  | IndBool Term Term Term Term
+  | IndBool Term Term Term Term -- IndBool target mot fBase tBase : mot target
+  -- S : U
+  -- P : S -> U
+  | W Term Term -- W S P : U
+  -- s : S
+  -- f : P s -> W S P
+  | Sup Term Term -- Sup s f : W S P
+  -- target : W S P
+  -- mot : W S P -> U
+  -- c : Π(s : S) Π(f : P s -> W S P) (Π(p : P s) mot(f p)) -> mot (Sup s f)
+  | IndW Term Term Term -- mot target
   | U -- U
 
 instance Show Term where
@@ -95,6 +101,9 @@ instance Show Term where
   show F = "False"
   show (IndBool target mot fBase tBase) =
     printf "IndBool %s %s %s %s" (show target) (show mot) (show fBase) (show tBase)
+  show (W s p) = printf "W %s %s" (show s) (show p)
+  show (Sup s f) = printf "Sup %s %s" (show s) (show f)
+  show (IndW target mot c) = printf "IndW %s %s %s" (show target) (show mot) (show c)
   show U = "U"
 
 data Value
@@ -108,6 +117,8 @@ data Value
   | VBool
   | VT
   | VF
+  | VW Value Value
+  | VSup Value Value
   | VU
   | VNeutral Neutral
   deriving (Show)
@@ -119,6 +130,7 @@ data Neutral
   | NSecond Neutral
   | NIndAbsurd Neutral Value
   | NIndBool Neutral Value Value Value
+  | NIndW Neutral Value Value
   deriving (Show)
 
 newtype Worker a = Worker

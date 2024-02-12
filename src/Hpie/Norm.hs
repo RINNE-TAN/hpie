@@ -1,5 +1,6 @@
 module Hpie.Norm where
 
+import Control.Monad (foldM)
 import Hpie.Types
 
 getEnv :: Worker (Env Value)
@@ -59,6 +60,13 @@ eval (IndBool target mot fBase tBase) = do
   fBaseV <- eval fBase
   tBaseV <- eval tBase
   doIndBool targetV motV fBaseV tBaseV
+eval (W s p) = VW <$> eval s <*> eval p
+eval (Sup s f) = VSup <$> eval s <*> eval f
+eval (IndW target mot c) = do
+  targetV <- eval target
+  motV <- eval mot
+  cV <- eval c
+  doIndW targetV motV cV
 eval U = return VU
 
 doApplyClosure :: Closure -> Value -> Worker Value
@@ -84,6 +92,19 @@ doIndBool :: Value -> Value -> Value -> Value -> Worker Value
 doIndBool VT _ _ tBase = return tBase
 doIndBool VF _ fbase _ = return fbase
 doIndBool (VNeutral ne) mot fBase tBase = return $ VNeutral (NIndBool ne mot fBase tBase)
+
+doIndW :: Value -> Value -> Value -> Worker Value
+doIndW (VSup s f) mot c = do
+  p <- fresh "p"
+  let pV = VNeutral (NVar p)
+  nW <- doApply f pV
+  lamRes <- doIndW nW mot c
+  lam <-
+    withEnv
+      (Env [("lamRes", lamRes)])
+      (eval (Lam p (Var "lamRes")))
+  foldM doApply c [s, f, lam]
+doIndW (VNeutral ne) mot c = return $ VNeutral (NIndW ne mot c)
 
 reifyClosure :: Symbol -> Closure -> Worker (Symbol, Term)
 reifyClosure x closure = do
@@ -111,6 +132,8 @@ reify VAbsurd = return Absurd
 reify VBool = return Bool
 reify VT = return T
 reify VF = return F
+reify (VW s p) = W <$> reify s <*> reify p
+reify (VSup s f) = Sup <$> reify s <*> reify f
 reify VU = return U
 reify (VNeutral neu) = reifyNeutral neu
 
@@ -123,3 +146,5 @@ reifyNeutral (NIndAbsurd target mot) =
   IndAbsurd <$> reifyNeutral target <*> reify mot
 reifyNeutral (NIndBool target mot fBase tBase) =
   IndBool <$> reifyNeutral target <*> reify mot <*> reify fBase <*> reify tBase
+reifyNeutral (NIndW target mot c) =
+  IndW <$> reifyNeutral target <*> reify mot <*> reify c

@@ -68,5 +68,9 @@ eq left right =
     (F, F) -> yes
     (IndBool target1 mot1 fBase1 tBase1, IndBool target2 mot2 fBase2 tBase2) ->
       eq target1 target2 *> eq mot1 mot2 *> eq fBase1 fBase2 *> eq tBase1 tBase2
+    (W s1 p1, W s2 p2) -> eq s1 s2 *> eq p1 p2
+    (Sup s1 f1, Sup s2 f2) -> eq s1 s2 *> eq f1 f2
+    (IndW target1 mot1 c1, IndW target2 mot2 c2) ->
+      eq target1 target2 *> eq mot1 mot2 *> eq c1 c2
     (U, U) -> yes
     (l, r) -> no l r

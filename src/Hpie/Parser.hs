@@ -130,7 +130,10 @@ keywords =
     "True",
     "False",
     "IndBool",
+    "IndW",
+    "W",
     "U",
+    "Sup",
     "::",
     "==="
   ]
@@ -192,12 +195,15 @@ pApp = do
   list <- many1 pAtom
   return $ foldl1 App list
 
-pPair, pFirst, pSecond, pIndAbsurd, pIndBool :: Parser Term
+pPair, pFirst, pSecond, pIndAbsurd, pIndBool, pW, pSup, pIndW :: Parser Term
 pPair = kw "Pair" *> (Pair <$> pAtom <*> pAtom)
 pFirst = kw "First" *> (First <$> pAtom)
 pSecond = kw "Second" *> (Second <$> pAtom)
 pIndAbsurd = kw "IndAbsurd" *> (IndAbsurd <$> pAtom <*> pAtom)
 pIndBool = kw "IndBool" *> (IndBool <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
+pW = kw "W" *> (W <$> pAtom <*> pAtom)
+pSup = kw "Sup" *> (Sup <$> pAtom <*> pAtom)
+pIndW = kw "IndW" *> (IndW <$> pAtom <*> pAtom <*> pAtom)
 
 pApply :: Parser Term
 pApply =
@@ -207,7 +213,10 @@ pApply =
       pFirst,
       pSecond,
       pIndAbsurd,
-      pIndBool
+      pIndBool,
+      pW,
+      pSup,
+      pIndW
     ]
 
 pArrow :: Parser Term
