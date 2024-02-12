@@ -1,0 +1,93 @@
+cAbsurd :: U.
+cAbsurd = Π(A:U) A.
+
+cIndAbsurd :: cAbsurd -> U.
+cIndAbsurd = λ(a) Π(P:cAbsurd -> U)
+                P a.
+Absurd :: U.
+Absurd = Σ(a:cAbsurd) cIndAbsurd a.
+
+cTrivial :: U.
+cTrivial = Π(T:U) T -> T.
+
+cSole :: cTrivial.
+cSole = λ(T) λ(sole) sole.
+
+cIndTrivial :: cTrivial -> U.
+cIndTrivial = λ(t) Π(P:cTrivial -> U)
+                P cSole -> P t.
+
+Trivial :: U.
+Trivial = Σ(t:cTrivial) cIndTrivial t.
+
+Sole :: Trivial.
+Sole = (cSole, λ(p) λ(psole) psole).
+
+cBool :: U.
+cBool = Π(B:U) B -> B -> B.
+
+cTrue :: cBool.
+cTrue = λ(b) λ(false) λ(true) true.
+
+cFalse :: cBool.
+cFalse = λ(b) λ(false) λ(true) false.
+
+cIndBool :: cBool -> U.
+cIndBool = λ(b) Π(P:cBool -> U)
+            P cFalse -> P cTrue 
+                -> P b.
+
+Bool :: U.
+Bool = Σ(x:cBool) cIndBool x.
+
+True :: Bool.
+True = (cTrue, λ(p) λ(pfalse) λ(ptrue) ptrue).
+
+False :: Bool.
+False = (cFalse, λ(p) λ(pfalse) λ(ptrue) pfalse).
+
+cW :: Π(S:U) (S -> U) -> U.
+cW = λ(S) λ(P) 
+    Π(W:U) (Π(s:S) (P s -> W) -> W) -> W.
+
+cSup :: Π(S:U) Π(P:S -> U) Π(s:S) (P s -> cW S P) -> cW S P.
+cSup = λ(S) λ(P) λ(s) λ(f)
+            λ(W) λ(sup)
+                sup s (λ(ps) f ps W sup)
+.
+
+cWInd :: Π(S:U) Π(P:S -> U) cW S P -> U.
+cWInd = λ(S) λ(P) λ(w) Π(C:cW S P -> U) 
+            (
+                Π(s:S) Π(f:P s -> cW S P) 
+                    (Π(p:P s) C (f p)) -> C(cSup S P s f)
+            ) -> C w
+.
+
+W :: Π(S:U) (S -> U) -> U.
+W = λ(S) λ(P) Σ(w:cW S P) cWInd S P w.
+
+Sup :: Π(S:U) Π(P:S -> U) Π(s:S) (P s -> W S P) -> W S P.
+Sup = λ(S) λ(P) λ(s) λ(f)
+        (
+            cSup S P s (λ(ps) First (f ps)),
+            λ(C) λ(psup) 
+                psup s (λ(ps) First (f ps)) (
+                    λ(ps)
+                        (Second (f ps)) C psup
+                )
+        )
+.
+PN :: Bool -> U.
+PN = λ(b) (Second b) (λ(b) U) Absurd Trivial.
+
+N :: U.
+N = W Bool PN.
+
+Z :: N.
+Z = Sup Bool PN
+    False (λ(absurd) (Second absurd) (λ(absurd) N)).
+
+S :: N -> N.
+S = λ(n) Sup Bool PN
+    True (λ(trivial) n).
