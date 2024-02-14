@@ -23,3 +23,15 @@ plus = λ(left) λ(right)
 .
 
 plus (S Z) (S Z) === S (S Z) : N.
+
+e :: U.
+e = Either Trivial Bool.
+
+le :: e.
+le = Inl Sole.
+
+re :: e.
+re = Inr False.
+
+IndEither le (λ(e) Bool) (λ(l) True) (λ(r) r) === True : Bool.
+IndEither re (λ(e) Bool) (λ(l) True) (λ(r) r) === False : Bool.

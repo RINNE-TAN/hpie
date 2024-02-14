@@ -151,6 +151,41 @@ infer (W s p) = do
       (Arrow (Var "S") U)
   _ <- check p pTy
   return VU
+infer (Either l r) = do
+  _ <- check l VU
+  _ <- check r VU
+  return VU
+infer (IndEither target mot onLeft onRight) = do
+  eTy <- infer target
+  case eTy of
+    (VEither lTy rTy) -> do
+      targetV <- eval target
+      motTy <-
+        evalInEnv
+          (Env [("eTy", eTy)])
+          (Arrow (Var "eTy") U)
+      _ <- check mot motTy
+      motV <- eval mot
+      onLeftTy <-
+        evalInEnv
+          (Env [("L", lTy), ("mot", motV)])
+          ( Pi
+              "l"
+              (Var "L")
+              (App (Var "mot") (Inl (Var "l")))
+          )
+      _ <- check onLeft onLeftTy
+      onRightTy <-
+        evalInEnv
+          (Env [("R", rTy), ("mot", motV)])
+          ( Pi
+              "r"
+              (Var "R")
+              (App (Var "mot") (Inr (Var "r")))
+          )
+      _ <- check onRight onRightTy
+      doApply motV targetV
+    _ -> failCheck "Either Type" eTy
 infer U = return VU
 infer other = failWithError $ CanNotInfer (show other)
 
@@ -190,6 +225,12 @@ check (Sup s f) wTy = case wTy of
         )
     check f fTy
   _ -> failCheck "Sup Type" wTy
+check (Inl l) eTy = case eTy of
+  (VEither lTy _) -> check l lTy
+  _ -> failCheck "Either Type" eTy
+check (Inr r) eTy = case eTy of
+  (VEither _ rTy) -> check r rTy
+  _ -> failCheck "Either Type" eTy
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'

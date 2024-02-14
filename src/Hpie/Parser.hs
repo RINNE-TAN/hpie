@@ -120,8 +120,8 @@ keywords =
     "Σ",
     "->",
     "Pair",
-    "First",
-    "Second",
+    "fst",
+    "snd",
     "Trivial",
     "Sole",
     "Absurd",
@@ -134,6 +134,10 @@ keywords =
     "W",
     "U",
     "Sup",
+    "Either",
+    "Inl",
+    "Inr",
+    "IndEither",
     "::",
     "==="
   ]
@@ -195,15 +199,19 @@ pApp = do
   list <- many1 pAtom
   return $ foldl1 App list
 
-pPair, pFirst, pSecond, pIndAbsurd, pIndBool, pW, pSup, pIndW :: Parser Term
+pPair, pFirst, pSecond, pIndAbsurd, pIndBool, pW, pSup, pIndW, pEither, pInl, pInr, pIndEither :: Parser Term
 pPair = kw "Pair" *> (Pair <$> pAtom <*> pAtom)
-pFirst = kw "First" *> (First <$> pAtom)
-pSecond = kw "Second" *> (Second <$> pAtom)
+pFirst = kw "fst" *> (First <$> pAtom)
+pSecond = kw "snd" *> (Second <$> pAtom)
 pIndAbsurd = kw "IndAbsurd" *> (IndAbsurd <$> pAtom <*> pAtom)
 pIndBool = kw "IndBool" *> (IndBool <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
 pW = kw "W" *> (W <$> pAtom <*> pAtom)
 pSup = kw "Sup" *> (Sup <$> pAtom <*> pAtom)
 pIndW = kw "IndW" *> (IndW <$> pAtom <*> pAtom <*> pAtom)
+pEither = kw "Either" *> (Either <$> pAtom <*> pAtom)
+pInl = kw "Inl" *> (Inl <$> pAtom)
+pInr = kw "Inr" *> (Inr <$> pAtom)
+pIndEither = kw "IndEither" *> (IndEither <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
 
 pApply :: Parser Term
 pApply =
@@ -216,7 +224,11 @@ pApply =
       pIndBool,
       pW,
       pSup,
-      pIndW
+      pIndW,
+      pEither,
+      pInl,
+      pInr,
+      pIndEither
     ]
 
 pArrow :: Parser Term

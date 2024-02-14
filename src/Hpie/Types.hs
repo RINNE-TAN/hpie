@@ -72,7 +72,19 @@ data Term
   -- target : W S P
   -- mot : W S P -> U
   -- c : Π(s : S) Π(f : P s -> W S P) (Π(p : P s) mot(f p)) -> mot (Sup s f)
-  | IndW Term Term Term -- mot target
+  | IndW Term Term Term -- IndW target mot c : mot target
+  -- L : U
+  -- R : U
+  | Either Term Term -- Either L R : U
+  -- l : L
+  | Inl Term -- Inl l : Either L R
+  -- r : R
+  | Inr Term -- Inr r : Either L R
+  -- target : Either L R
+  -- mot : Either L R -> U
+  -- onLeft : Π(l:L) mot (Inl l)
+  -- onRight : Π(r:R) mot (Inr r)
+  | IndEither Term Term Term Term -- IndEither target mot onLeft onRight : mot target
   | U -- U
 
 instance Show Term where
@@ -104,6 +116,11 @@ instance Show Term where
   show (W s p) = printf "W %s %s" (show s) (show p)
   show (Sup s f) = printf "Sup %s %s" (show s) (show f)
   show (IndW target mot c) = printf "IndW %s %s %s" (show target) (show mot) (show c)
+  show (Either l r) = printf "Either %s %s" (show l) (show r)
+  show (Inl l) = printf "Inl %s" (show l)
+  show (Inr r) = printf "Inr %s" (show r)
+  show (IndEither target mot onLeft onRight) =
+    printf "IndEither %s %s %s %s" (show target) (show mot) (show onLeft) (show onRight)
   show U = "U"
 
 data Value
@@ -119,6 +136,9 @@ data Value
   | VF
   | VW Value Value
   | VSup Value Value
+  | VEither Value Value
+  | VInl Value
+  | VInr Value
   | VU
   | VNeutral Neutral
   deriving (Show)
@@ -131,6 +151,7 @@ data Neutral
   | NIndAbsurd Neutral Value
   | NIndBool Neutral Value Value Value
   | NIndW Neutral Value Value
+  | NIndEither Neutral Value Value Value
   deriving (Show)
 
 newtype Worker a = Worker

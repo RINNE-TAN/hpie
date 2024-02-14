@@ -67,6 +67,15 @@ eval (IndW target mot c) = do
   motV <- eval mot
   cV <- eval c
   doIndW targetV motV cV
+eval (Either l r) = VEither <$> eval l <*> eval r
+eval (Inl l) = VInl <$> eval l
+eval (Inr r) = VInr <$> eval r
+eval (IndEither target mot onLeft onRight) = do
+  targetV <- eval target
+  motV <- eval mot
+  onLeftV <- eval onLeft
+  onRightV <- eval onRight
+  doIndEither targetV motV onLeftV onRightV
 eval U = return VU
 
 doApplyClosure :: Closure -> Value -> Worker Value
@@ -106,6 +115,11 @@ doIndW (VSup s f) mot c = do
   foldM doApply c [s, f, lam]
 doIndW (VNeutral ne) mot c = return $ VNeutral (NIndW ne mot c)
 
+doIndEither :: Value -> Value -> Value -> Value -> Worker Value
+doIndEither (VInl l) _ onLeft _ = doApply onLeft l
+doIndEither (VInr r) _ _ onRight = doApply onRight r
+doIndEither (VNeutral ne) mot onLeft onRight = return $ VNeutral (NIndEither ne mot onLeft onRight)
+
 reifyClosure :: Symbol -> Closure -> Worker (Symbol, Term)
 reifyClosure x closure = do
   y <- fresh x
@@ -134,6 +148,9 @@ reify VT = return T
 reify VF = return F
 reify (VW s p) = W <$> reify s <*> reify p
 reify (VSup s f) = Sup <$> reify s <*> reify f
+reify (VEither l r) = Either <$> reify l <*> reify r
+reify (VInl l) = Inl <$> reify l
+reify (VInr r) = Inr <$> reify r
 reify VU = return U
 reify (VNeutral neu) = reifyNeutral neu
 
@@ -148,3 +165,5 @@ reifyNeutral (NIndBool target mot fBase tBase) =
   IndBool <$> reifyNeutral target <*> reify mot <*> reify fBase <*> reify tBase
 reifyNeutral (NIndW target mot c) =
   IndW <$> reifyNeutral target <*> reify mot <*> reify c
+reifyNeutral (NIndEither target mot onLeft onRight) =
+  IndEither <$> reifyNeutral target <*> reify mot <*> reify onLeft <*> reify onRight

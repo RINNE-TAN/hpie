@@ -72,5 +72,10 @@ eq left right =
     (Sup s1 f1, Sup s2 f2) -> eq s1 s2 *> eq f1 f2
     (IndW target1 mot1 c1, IndW target2 mot2 c2) ->
       eq target1 target2 *> eq mot1 mot2 *> eq c1 c2
+    (Either l1 r1, Either l2 r2) -> eq l1 l2 *> eq r1 r2
+    (Inl l1, Inl l2) -> eq l1 l2
+    (Inr r1, Inr r2) -> eq r1 r2
+    (IndEither target1 mot1 onLeft1 onRight1, IndEither target2 mot2 onLeft2 onRight2) ->
+      eq target1 target2 *> eq mot1 mot2 *> eq onLeft1 onLeft2 *> eq onRight1 onRight2
     (U, U) -> yes
     (l, r) -> no l r
