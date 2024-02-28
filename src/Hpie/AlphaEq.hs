@@ -2,7 +2,7 @@ module Hpie.AlphaEq where
 
 import Hpie.Types
 
-alphaEq :: Term -> Term -> Either RuntimeError ()
+alphaEq :: Term -> Term -> Either HpieError ()
 alphaEq t1 t2 = runAlpha (eq t1 t2) [] [] 0
 
 newtype Alpha a = Alpha
@@ -10,7 +10,7 @@ newtype Alpha a = Alpha
       [(Symbol, Int)] ->
       [(Symbol, Int)] ->
       Int ->
-      Either RuntimeError a
+      Either HpieError a
   }
 
 instance Functor Alpha where
@@ -58,24 +58,5 @@ eq left right =
       eq l1 l2 *> eq r1 r2
     (First p1, First p2) -> eq p1 p2
     (Second p1, Second p2) -> eq p1 p2
-    (Trivial, Trivial) -> yes
-    (Sole, Sole) -> yes
-    (Absurd, Absurd) -> yes
-    (IndAbsurd target1 mot1, IndAbsurd target2 mot2) ->
-      eq target1 target2 *> eq mot1 mot2
-    (Bool, Bool) -> yes
-    (T, T) -> yes
-    (F, F) -> yes
-    (IndBool target1 mot1 fBase1 tBase1, IndBool target2 mot2 fBase2 tBase2) ->
-      eq target1 target2 *> eq mot1 mot2 *> eq fBase1 fBase2 *> eq tBase1 tBase2
-    (W s1 p1, W s2 p2) -> eq s1 s2 *> eq p1 p2
-    (Sup s1 f1, Sup s2 f2) -> eq s1 s2 *> eq f1 f2
-    (IndW target1 mot1 c1, IndW target2 mot2 c2) ->
-      eq target1 target2 *> eq mot1 mot2 *> eq c1 c2
-    (Either l1 r1, Either l2 r2) -> eq l1 l2 *> eq r1 r2
-    (Inl l1, Inl l2) -> eq l1 l2
-    (Inr r1, Inr r2) -> eq r1 r2
-    (IndEither target1 mot1 onLeft1 onRight1, IndEither target2 mot2 onLeft2 onRight2) ->
-      eq target1 target2 *> eq mot1 mot2 *> eq onLeft1 onLeft2 *> eq onRight1 onRight2
     (U, U) -> yes
     (l, r) -> no l r

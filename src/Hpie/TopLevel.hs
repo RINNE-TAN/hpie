@@ -1,91 +1,66 @@
 module Hpie.TopLevel where
 
+import Control.Monad.Reader
+import Control.Monad.State (StateT (runStateT), get, put)
 import qualified Hpie.AlphaEq as AlphaEq
 import qualified Hpie.CheckTy as CheckTy
+import Hpie.Env (Entry (..), Env (..), Ty, Value)
+import qualified Hpie.Env as Env
 import qualified Hpie.Norm as Norm
 import Hpie.Parser
 import Hpie.Types
 
-newtype TopCtxWorker a = TopCtxWorker
-  { runTopCtxWorker :: Env (CtxEntry Value) -> Either TopLevelError (Env (CtxEntry Value), a)
-  }
+type TopMonad = StateT Env (Either HpieError)
 
-instance Functor TopCtxWorker where
-  fmap f (TopCtxWorker wa) = TopCtxWorker (fmap (fmap f) . wa)
+runTopMonad :: TopMonad a -> Env -> Either HpieError (a, Env)
+runTopMonad = runStateT
 
-instance Applicative TopCtxWorker where
-  pure x = TopCtxWorker (\e -> Right (e, x))
-  (<*>) (TopCtxWorker wab) (TopCtxWorker wa) =
-    TopCtxWorker
-      ( \e -> do
-          (e2, ab) <- wab e
-          (e3, a) <- wa e2
-          return (e3, ab a)
-      )
-
-instance Monad TopCtxWorker where
-  (>>=) (TopCtxWorker wa) f =
-    TopCtxWorker
-      ( \e -> do
-          (e2, a) <- wa e
-          runTopCtxWorker (f a) e2
-      )
+tc2top :: Env.TcMonad a -> TopMonad a
+tc2top tc = do
+  env <- get
+  lift $ Env.runTcMonad tc env
 
 topLevelMain :: String -> [TopLevelMsg]
-topLevelMain s = case runTopCtxWorker (topLevel s) (Env []) of
+topLevelMain s = case runTopMonad (topLevel s) Env.initEnv of
   Left e -> error $ show e
-  Right (_, v) -> v
+  Right (v, _) -> v
 
-parser :: String -> Parser a -> TopCtxWorker a
-parser input pa =
-  TopCtxWorker
-    ( \e -> case runParser pa input of
-        Left msg -> error $ show msg
-        Right (_, v) -> Right (e, v)
-    )
+parser :: String -> Parser a -> TopMonad (Input, a)
+parser input pa = lift $
+  case runParser pa input of
+    Left e -> error $ show e
+    Right v -> Right v
 
-addDef :: Symbol -> CtxEntry Value -> TopCtxWorker ()
-addDef s e =
-  TopCtxWorker
-    ( \ctx -> Right (extend ctx (s, e), ())
-    )
+eval :: Term -> TopMonad Value
+eval = tc2top . Norm.eval
 
-ctxWorker :: CtxWorker a -> TopCtxWorker a
-ctxWorker ctx =
-  TopCtxWorker
-    ( \e -> case runCtxWorker ctx e of
-        Left re -> Left $ RuntimeError re
-        Right res -> Right (e, res)
-    )
+reify :: Value -> TopMonad Term
+reify = tc2top . Norm.reify
 
-worker :: Worker a -> TopCtxWorker a
-worker = ctxWorker . toCtxWorker
+searchTy :: Symbol -> TopMonad Ty
+searchTy = tc2top . Env.searchTy
 
-eval :: Term -> TopCtxWorker Value
-eval = worker . Norm.eval
+check :: Term -> Value -> TopMonad ()
+check term value = tc2top $ CheckTy.check term value
 
-reify :: Value -> TopCtxWorker Term
-reify = worker . Norm.reify
+addDef :: Symbol -> Entry -> TopMonad ()
+addDef symbol entry = do
+  env@Env {ctx = c} <- get
+  put $ env {ctx = (symbol, entry) : c}
 
-check :: Term -> Value -> TopCtxWorker ()
-check term ty = ctxWorker $ CheckTy.check term ty
-
-lookupTy :: Symbol -> TopCtxWorker Value
-lookupTy = ctxWorker . CheckTy.lookupTy
-
-runOne :: TopLevel -> TopCtxWorker TopLevelMsg
+runOne :: TopLevel -> TopMonad TopLevelMsg
 runOne (Claim x t) = do
   ty <- eval t
   tNorm <- reify ty
   _ <- addDef x (IsA ty)
   return $ AddClaim x tNorm
 runOne (Define x e) = do
-  ty <- lookupTy x
+  ty <- searchTy x
   tyNorm <- reify ty
   _ <- check e ty
   eV <- eval e
   eNorm <- reify eV
-  _ <- addDef x (Def eV ty)
+  _ <- addDef x (Def eV)
   return $ AddDefine x eNorm tyNorm
 runOne (CheckSame ty e1 e2) = do
   tyV <- eval ty
@@ -99,9 +74,9 @@ runOne (CheckSame ty e1 e2) = do
     Left re -> return $ NotSame (show re)
     Right () -> return IsSame
 
-topLevel :: String -> TopCtxWorker [TopLevelMsg]
+topLevel :: String -> TopMonad [TopLevelMsg]
 topLevel input = do
-  tops <- parser input pProg
+  (_, tops) <- parser input pProg
   foldr
     ( \curWork tailWork -> do
         cur <- runOne curWork

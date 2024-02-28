@@ -122,22 +122,7 @@ keywords =
     "Pair",
     "fst",
     "snd",
-    "Trivial",
-    "Sole",
-    "Absurd",
-    "IndAbsurd",
-    "Bool",
-    "True",
-    "False",
-    "IndBool",
-    "IndW",
-    "W",
     "U",
-    "Sup",
-    "Either",
-    "Inl",
-    "Inr",
-    "IndEither",
     "::",
     "==="
   ]
@@ -167,16 +152,10 @@ pDefine :: Parser TopLevel
 pDefine = Define <$> (ident <* token '=') <*> pTerm
 
 -- Atom
-pU, pVar, pParens, pTrivial, pSole, pAbsurd, pBool, pTrue, pFalse :: Parser Term
+pU, pVar, pParens :: Parser Term
 pU = kw "U" $> U
 pVar = Var <$> ident
 pParens = parens pTerm
-pTrivial = kw "Trivial" $> Trivial
-pSole = kw "Sole" $> Sole
-pAbsurd = kw "Absurd" $> Absurd
-pBool = kw "Bool" $> Bool
-pTrue = kw "True" $> T
-pFalse = kw "False" $> F
 
 pAtom :: Parser Term
 pAtom =
@@ -185,13 +164,7 @@ pAtom =
       (<|>)
       [ pU,
         pVar,
-        pParens,
-        pTrivial,
-        pSole,
-        pAbsurd,
-        pBool,
-        pTrue,
-        pFalse
+        pParens
       ]
 
 pApp :: Parser Term
@@ -199,19 +172,10 @@ pApp = do
   list <- many1 pAtom
   return $ foldl1 App list
 
-pPair, pFirst, pSecond, pIndAbsurd, pIndBool, pW, pSup, pIndW, pEither, pInl, pInr, pIndEither :: Parser Term
+pPair, pFirst, pSecond :: Parser Term
 pPair = kw "Pair" *> (Pair <$> pAtom <*> pAtom)
 pFirst = kw "fst" *> (First <$> pAtom)
 pSecond = kw "snd" *> (Second <$> pAtom)
-pIndAbsurd = kw "IndAbsurd" *> (IndAbsurd <$> pAtom <*> pAtom)
-pIndBool = kw "IndBool" *> (IndBool <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
-pW = kw "W" *> (W <$> pAtom <*> pAtom)
-pSup = kw "Sup" *> (Sup <$> pAtom <*> pAtom)
-pIndW = kw "IndW" *> (IndW <$> pAtom <*> pAtom <*> pAtom)
-pEither = kw "Either" *> (Either <$> pAtom <*> pAtom)
-pInl = kw "Inl" *> (Inl <$> pAtom)
-pInr = kw "Inr" *> (Inr <$> pAtom)
-pIndEither = kw "IndEither" *> (IndEither <$> pAtom <*> pAtom <*> pAtom <*> pAtom)
 
 pApply :: Parser Term
 pApply =
@@ -219,16 +183,7 @@ pApply =
     (<|>)
     [ pPair,
       pFirst,
-      pSecond,
-      pIndAbsurd,
-      pIndBool,
-      pW,
-      pSup,
-      pIndW,
-      pEither,
-      pInl,
-      pInr,
-      pIndEither
+      pSecond
     ]
 
 pArrow :: Parser Term

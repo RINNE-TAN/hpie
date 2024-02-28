@@ -22,37 +22,11 @@ W = λ(S) λ(P) Σ(w:cW S P) cWInd S P w.
 Sup :: Π(S:U) Π(P:S -> U) Π(s:S) (P s -> W S P) -> W S P.
 Sup = λ(S) λ(P) λ(s) λ(f)
         (
-            cSup S P s (λ(ps) First (f ps)),
+            cSup S P s (λ(ps) fst (f ps)),
             λ(C) λ(psup) 
-                psup s (λ(ps) First (f ps)) (
+                psup s (λ(ps) fst (f ps)) (
                     λ(ps)
-                        (Second (f ps)) C psup
+                        (snd (f ps)) C psup
                 )
         )
 .
-PN :: Bool -> U.
-PN = λ(b) IndBool b (λ(b) U) Absurd Trivial.
-
-N :: U.
-N = W Bool PN.
-
-Z :: N.
-Z = Sup Bool PN
-    False (λ(absurd) IndAbsurd absurd N).
-
-S :: N -> N.
-S = λ(n) Sup Bool PN
-    True (λ(trivial) n).
-
-plusMot :: cW Bool PN -> U.
-plusMot = λ(n) N.
-
-plus :: N -> N -> N.
-plus = λ(left) λ(right)
-        (Second left) plusMot (
-            λ(s) λ(f) IndBool s (λ(s) (PN s -> N) -> N)
-                (λ(child) right)
-                (λ(child) S(child Sole))
-        )
-.
-plus (S Z) (S Z) === S (S Z) : N.
