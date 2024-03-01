@@ -123,8 +123,7 @@ keywords =
     "fst",
     "snd",
     "U",
-    "::",
-    "==="
+    "::"
   ]
 
 token :: Char -> Parser ()
@@ -134,16 +133,7 @@ parens :: Parser a -> Parser a
 parens p = token '(' *> p <* token ')'
 
 pProg :: Parser [TopLevel]
-pProg = many1 ((pCheckSame <|> pClaim <|> pDefine) <* token '.' <* spaces) <* eof
-
-pCheckSame :: Parser TopLevel
-pCheckSame = do
-  left <- pTerm
-  kw "==="
-  right <- pTerm
-  token ':'
-  ty <- pTerm
-  return $ CheckSame ty left right
+pProg = many1 ((pClaim <|> pDefine) <* token '.' <* spaces) <* eof
 
 pClaim :: Parser TopLevel
 pClaim = Claim <$> (ident <* kw "::") <*> pTerm
@@ -196,15 +186,15 @@ pArrow = do
 
 pPi, pLam, pSigma, pCons :: Parser Term
 pPi = do
-  _ <- kw "Π"
+  kw "Π"
   (x, a) <- parens ((ident <* token ':') +++ pTerm)
   Pi x a <$> pTerm
 pLam = do
-  _ <- kw "λ"
+  kw "λ"
   x <- parens ident
   Lam x <$> pTerm
 pSigma = do
-  _ <- kw "Σ"
+  kw "Σ"
   (x, a) <- parens ((ident <* token ':') +++ pTerm)
   Sigma x a <$> pTerm
 pCons = parens (Cons <$> (pTerm <* token ',') <*> pTerm)

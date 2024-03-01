@@ -1,9 +1,12 @@
 module Hpie.AlphaEq where
 
+import Hpie.Env (TcMonad, throwE)
 import Hpie.Types
 
-alphaEq :: Term -> Term -> Either HpieError ()
-alphaEq t1 t2 = runAlpha (eq t1 t2) [] [] 0
+alphaEq :: Term -> Term -> TcMonad ()
+alphaEq t1 t2 = case runAlpha (eq t1 t2) [] [] 0 of
+  Left e -> throwE e
+  Right _ -> return ()
 
 newtype Alpha a = Alpha
   { runAlpha ::

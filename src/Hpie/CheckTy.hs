@@ -14,30 +14,30 @@ failCheck expected got = do
 infer :: Term -> TcMonad Ty
 infer (Var x) = Env.searchTy x
 infer (Pi x a b) = do
-  _ <- check a VU
+  check a VU
   aV <- Norm.eval a
-  _ <- Env.extendEnv x (IsA aV) (check b VU)
+  Env.extendEnv x (IsA aV) (check b VU)
   return VU
 infer (Arrow a b) = do
-  _ <- check a VU
-  _ <- check b VU
+  check a VU
+  check b VU
   return VU
 infer (App f arg) = do
   fTy <- infer f
   case fTy of
     (VPi _ aT closure) -> do
-      _ <- check arg aT
+      check arg aT
       argV <- Norm.eval arg
       Norm.doApplyClosure closure argV
     _ -> failCheck "Pi Type" fTy
 infer (Sigma x a b) = do
-  _ <- check a VU
+  check a VU
   va <- Norm.eval a
-  _ <- Env.extendEnv x (IsA va) (check b VU)
+  Env.extendEnv x (IsA va) (check b VU)
   return VU
 infer (Pair a b) = do
-  _ <- check a VU
-  _ <- check b VU
+  check a VU
+  check b VU
   return VU
 infer (First p) = do
   pTy <- infer p
@@ -55,7 +55,7 @@ infer (Second p) = do
 infer U = return VU
 infer other = Env.throwE $ CanNotInfer (show other)
 
-check :: Term -> Value -> TcMonad ()
+check :: Term -> Ty -> TcMonad ()
 check (Lam x t) fTy = case fTy of
   (VPi _ aT closure) -> do
     y <- Norm.fresh x
@@ -64,7 +64,7 @@ check (Lam x t) fTy = case fTy of
   _ -> failCheck "Pi Type" fTy
 check (Cons first second) pTy = case pTy of
   (VSigma _ aT closure) -> do
-    _ <- check first aT
+    check first aT
     firstV <- Norm.eval first
     secondT <- Norm.doApplyClosure closure firstV
     check second secondT
@@ -77,6 +77,4 @@ convert :: Value -> Value -> TcMonad ()
 convert v1 v2 = do
   e1 <- Norm.reify v1
   e2 <- Norm.reify v2
-  case AlphaEq.alphaEq e1 e2 of
-    Left e -> Env.throwE e
-    Right () -> return ()
+  AlphaEq.alphaEq e1 e2

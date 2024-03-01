@@ -52,14 +52,11 @@ instance Show Term where
 data TopLevel
   = Claim Symbol Term
   | Define Symbol Term
-  | CheckSame Term Term Term
   deriving (Show)
 
 data TopLevelMsg
   = AddClaim Symbol Term
   | AddDefine Symbol Term Term
-  | IsSame
-  | NotSame String
   deriving (Show)
 
 data HpieError
