@@ -133,13 +133,13 @@ parens :: Parser a -> Parser a
 parens p = token '(' *> p <* token ')'
 
 pProg :: Parser [TopLevel]
-pProg = many1 ((pClaim <|> pDefine) <* token '.' <* spaces) <* eof
+pProg = many1 ((pIsA <|> pDef) <* token '.' <* spaces) <* eof
 
-pClaim :: Parser TopLevel
-pClaim = Claim <$> (ident <* kw "::") <*> pTerm
+pIsA :: Parser TopLevel
+pIsA = IsA <$> (ident <* kw "::") <*> pTerm
 
-pDefine :: Parser TopLevel
-pDefine = Define <$> (ident <* token '=') <*> pTerm
+pDef :: Parser TopLevel
+pDef = Def <$> (ident <* token '=') <*> pTerm
 
 -- Atom
 pU, pVar, pParens :: Parser Term

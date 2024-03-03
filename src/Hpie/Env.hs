@@ -1,10 +1,10 @@
 module Hpie.Env where
 
 import Control.Monad.Reader
-import Hpie.Types (HpieError (..), Symbol, Term)
+import Hpie.Types (HpieError (..), Symbol, Tele, Term)
 
 data Env = Env
-  { ctx :: [(Symbol, Entry)],
+  { ctx :: [VEntry],
     bound :: [Symbol]
   }
   deriving (Show)
@@ -12,15 +12,17 @@ data Env = Env
 initEnv :: Env
 initEnv = Env {ctx = [], bound = []}
 
-data Closure = Closure Env Symbol Term
+data Closure a = Closure Env a
   deriving (Show)
 
 data Value
-  = VPi Symbol Value Closure
-  | VLam Symbol Closure
-  | VSigma Symbol Value Closure
+  = VPi Value (Closure (Symbol, Term))
+  | VLam (Closure (Symbol, Term))
+  | VSigma Value (Closure (Symbol, Term))
   | VCons Value Value
   | VU
+  | VConstructor (Closure Tele)
+  | VData (Closure Tele)
   | VNeutral Neutral
   deriving (Show)
 
@@ -33,9 +35,10 @@ data Neutral
 
 type Ty = Value
 
-data Entry
-  = Def Value
-  | IsA Ty
+data VEntry
+  = VDef Symbol Value
+  | VIsA Symbol Ty
+  | VDataDef Symbol Value [(Symbol, Value)]
   deriving (Show)
 
 type TcMonad = ReaderT Env (Either HpieError)
@@ -43,11 +46,11 @@ type TcMonad = ReaderT Env (Either HpieError)
 runTcMonad :: TcMonad a -> Env -> Either HpieError a
 runTcMonad = runReaderT
 
-extendEnv :: Symbol -> Entry -> TcMonad a -> TcMonad a
-extendEnv symbol entry =
+extendEnv :: VEntry -> TcMonad a -> TcMonad a
+extendEnv entry =
   local
     ( \e@Env {ctx = c} ->
-        e {ctx = (symbol, entry) : c}
+        e {ctx = entry : c}
     )
 
 withEnv :: Env -> TcMonad a -> TcMonad a
@@ -66,28 +69,30 @@ inBound x =
 getBound :: TcMonad [Symbol]
 getBound = asks bound
 
-search :: Symbol -> TcMonad Entry
-search x = asks ctx >>= go
-  where
-    go [] = throwE (VarNotFound x)
-    go ((symbol, entry) : es)
-      | symbol == x = return entry
-      | otherwise = go es
-
 searchTy :: Symbol -> TcMonad Ty
 searchTy x = asks ctx >>= go
   where
     go [] = throwE (VarNotFound x)
-    go ((symbol, IsA ty) : es)
+    go (VIsA symbol ty : es)
       | symbol == x = return ty
       | otherwise = go es
     go (_ : es) = go es
 
 searchV :: Symbol -> TcMonad Value
-searchV x = f <$> search x
+searchV x = asks ctx >>= go
   where
-    f (Def v) = v
-    f (IsA _) = VNeutral (NVar x)
+    go [] = throwE (VarNotFound x)
+    go (VIsA symbol _ : es)
+      | symbol == x = return (VNeutral (NVar x))
+      | otherwise = go es
+    go (VDef symbol v : es)
+      | symbol == x = return v
+      | otherwise = go es
 
 throwE :: HpieError -> TcMonad a
 throwE e = lift (Left e)
+
+close :: a -> TcMonad (Closure a)
+close t = do
+  e <- getEnv
+  return (Closure e t)

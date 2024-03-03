@@ -49,14 +49,22 @@ instance Show Term where
   show (Second p) = printf "(Second %s)" (show p)
   show U = "U"
 
-data TopLevel
-  = Claim Symbol Term
-  | Define Symbol Term
+type TopLevel = Entry
+
+data Entry
+  = Def Symbol Term -- [x = a]
+  | IsA Symbol Term -- [x :: A]
+  | DataDef Symbol Tele [ConDef]
   deriving (Show)
 
+data ConDef = ConDef Symbol Tele
+  deriving (Show)
+
+type Tele = [Entry] -- [x = a], [x :: a] ...
+
 data TopLevelMsg
-  = AddClaim Symbol Term
-  | AddDefine Symbol Term Term
+  = AddIsA Symbol Term
+  | AddDef Symbol Term Term
   deriving (Show)
 
 data HpieError

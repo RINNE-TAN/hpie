@@ -3,7 +3,7 @@ module Hpie.TopLevel where
 import Control.Monad.Reader
 import Control.Monad.State (StateT (runStateT), get, put)
 import qualified Hpie.CheckTy as CheckTy
-import Hpie.Env (Entry (..), Env (..), Ty, Value)
+import Hpie.Env (Env (..), Ty, VEntry (..), Value)
 import qualified Hpie.Env as Env
 import qualified Hpie.Norm as Norm
 import Hpie.Parser
@@ -42,25 +42,25 @@ searchTy = tc2top . Env.searchTy
 check :: Term -> Value -> TopMonad ()
 check term value = tc2top $ CheckTy.check term value
 
-addDef :: Symbol -> Entry -> TopMonad ()
-addDef symbol entry = do
+addDef :: VEntry -> TopMonad ()
+addDef entry = do
   env@Env {ctx = c} <- get
-  put $ env {ctx = (symbol, entry) : c}
+  put $ env {ctx = entry : c}
 
 runOne :: TopLevel -> TopMonad TopLevelMsg
-runOne (Claim x t) = do
+runOne (IsA x t) = do
   ty <- eval t
   tNorm <- reify ty
-  addDef x (IsA ty)
-  return $ AddClaim x tNorm
-runOne (Define x e) = do
+  addDef (VIsA x ty)
+  return $ AddIsA x tNorm
+runOne (Def x e) = do
   ty <- searchTy x
   tyNorm <- reify ty
   check e ty
   eV <- eval e
   eNorm <- reify eV
-  addDef x (Def eV)
-  return $ AddDefine x eNorm tyNorm
+  addDef (VDef x eV)
+  return $ AddDef x eNorm tyNorm
 
 topLevel :: String -> TopMonad [TopLevelMsg]
 topLevel input = do
