@@ -1,0 +1,22 @@
+data Nat where
+  | Zero
+  | Succ (Nat)
+.
+
+x : Nat.
+x = Succ Zero.
+
+data Vec (A : U) (n : Nat) where
+  | Nil [n = Zero]
+  | Cons (m:Nat) (A) (Vec A m) [n = Succ m]
+.
+
+empty : Vec Nat (Succ Zero).
+empty = Cons Zero Zero Nil.
+
+data Eq (A : U) (l : A) (r : A) where
+  | Refl [l = r]
+.
+
+eqZ : Eq Nat Zero Zero.
+eqZ = Refl.

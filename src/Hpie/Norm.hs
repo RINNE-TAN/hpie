@@ -21,9 +21,11 @@ eval (App f arg) = do
   doApply fV argV
 eval (Sigma x a b) = VSigma <$> eval a <*> Env.close (x, b)
 eval (Pair a b) = VSigma <$> eval a <*> Env.close ("_", b)
-eval (Cons l r) = VCons <$> eval l <*> eval r
+eval (Prod l r) = VCons <$> eval l <*> eval r
 eval (First p) = eval p >>= doFirst
 eval (Second p) = eval p >>= doSecond
+eval (TyCon symbol args) = VTyCon symbol <$> mapM eval args
+eval (DataCon symbol args) = VDataCon symbol <$> mapM eval args
 eval U = return VU
 
 doApplyClosure :: Closure (Symbol, Term) -> Value -> TcMonad Value
@@ -65,7 +67,9 @@ reify (VSigma a closure) = do
   aT <- reify a
   (y, bT) <- reifyClosure closure
   return $ Sigma y aT bT
-reify (VCons l r) = Cons <$> reify l <*> reify r
+reify (VCons l r) = Prod <$> reify l <*> reify r
+reify (VTyCon symbol args) = TyCon symbol <$> mapM reify args
+reify (VDataCon symbol args) = DataCon symbol <$> mapM reify args
 reify VU = return U
 reify (VNeutral neu) = reifyNeutral neu
 

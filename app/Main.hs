@@ -4,5 +4,8 @@ import Hpie.TopLevel (topLevelMain)
 
 main :: IO ()
 main = do
-  input <- readFile "W.txt"
-  mapM_ print $ topLevelMain input
+  input <- readFile "W.pi"
+  msg <- topLevelMain input
+  case msg of
+    Left e -> print e
+    _ -> return ()

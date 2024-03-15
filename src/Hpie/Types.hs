@@ -18,17 +18,19 @@ freshen b s =
             else x
 
 data Term
-  = Var Symbol -- x
-  | Pi Symbol Term Term -- Π(x:A) B
-  | Arrow Term Term -- A -> B
-  | Lam Symbol Term -- λ(x) t
-  | App Term Term -- f arg
-  | Sigma Symbol Term Term -- Σ(x:A) D
-  | Pair Term Term -- Pair A D
-  | Cons Term Term -- (l, r)
-  | First Term -- fst p
-  | Second Term -- snd p
-  | U -- U
+  = Var Symbol
+  | Pi Symbol Term Term
+  | Arrow Term Term
+  | Lam Symbol Term
+  | App Term Term
+  | Sigma Symbol Term Term
+  | Pair Term Term
+  | Prod Term Term
+  | First Term
+  | Second Term
+  | TyCon Symbol [Term]
+  | DataCon Symbol [Term]
+  | U
 
 instance Show Term where
   show (Var x) = x
@@ -44,34 +46,33 @@ instance Show Term where
       then show (Pair a b)
       else printf "Σ(%s: %s) %s" x (show a) (show b)
   show (Pair a b) = printf "(Pair %s %s)" (show a) (show b)
-  show (Cons l r) = printf "(%s, %s)" (show l) (show r)
+  show (Prod l r) = printf "(%s, %s)" (show l) (show r)
   show (First p) = printf "(First %s)" (show p)
   show (Second p) = printf "(Second %s)" (show p)
+  show (TyCon symbol args) = printf "%s %s" (show symbol) (show args)
+  show (DataCon symbol args) = printf "%s %s" (show symbol) (show args)
   show U = "U"
 
 type TopLevel = Entry
 
 data Entry
   = Def Symbol Term -- [x = a]
-  | IsA Symbol Term -- [x :: A]
-  | DataDef Symbol Tele [ConDef]
+  | IsA Symbol Term -- [x : A]
+  | TyDef Symbol Tele [DataDef]
   deriving (Show)
 
-data ConDef = ConDef Symbol Tele
+data DataDef = DataDef Symbol Tele
   deriving (Show)
 
 type Tele = [Entry] -- [x = a], [x :: a] ...
-
-data TopLevelMsg
-  = AddIsA Symbol Term
-  | AddDef Symbol Term Term
-  deriving (Show)
 
 data HpieError
   = TypeMissMatch String String
   | AlphaNotEq String String
   | CanNotInfer String
   | VarNotFound String
+  | DataConMissMatch String String
+  | ArgNumMissMatch
   deriving (Show)
 
 data ParserError

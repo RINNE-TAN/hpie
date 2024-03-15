@@ -1,5 +1,6 @@
 module Hpie.AlphaEq where
 
+import Data.Foldable (traverse_)
 import Hpie.Env (TcMonad, throwE)
 import Hpie.Types
 
@@ -34,6 +35,14 @@ no l r = Alpha (\_ _ _ -> Left $ AlphaNotEq (show l) (show r))
 yes :: Alpha ()
 yes = pure ()
 
+rawEq :: (Eq a, Show a) => a -> a -> Alpha ()
+rawEq l r
+  | l == r = yes
+  | otherwise = Alpha (\_ _ _ -> Left $ AlphaNotEq (show l) (show r))
+
+listEq :: [Term] -> [Term] -> Alpha ()
+listEq llist rlist = rawEq (length llist) (length rlist) *> traverse_ (uncurry eq) (zip llist rlist)
+
 eq :: Term -> Term -> Alpha ()
 eq left right =
   case (left, right) of
@@ -57,9 +66,15 @@ eq left right =
     (Sigma x1 a1 b1, Sigma x2 a2 b2) ->
       eq a1 a2 *> with x1 x2 (eq b1 b2)
     (Pair a1 b1, Pair a2 b2) -> eq a1 a2 *> eq b1 b2
-    (Cons l1 r1, Cons l2 r2) ->
+    (Prod l1 r1, Prod l2 r2) ->
       eq l1 l2 *> eq r1 r2
     (First p1, First p2) -> eq p1 p2
     (Second p1, Second p2) -> eq p1 p2
+    (TyCon x1 args1, TyCon x2 args2) ->
+      rawEq x1 x2
+        *> listEq args1 args2
+    (DataCon x1 args1, DataCon x2 args2) ->
+      rawEq x1 x2
+        *> listEq args1 args2
     (U, U) -> yes
     (l, r) -> no l r

@@ -1,5 +1,6 @@
 module Hpie.Env where
 
+import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.Reader
 import Hpie.Types (HpieError (..), Symbol, Tele, Term)
 
@@ -21,8 +22,8 @@ data Value
   | VSigma Value (Closure (Symbol, Term))
   | VCons Value Value
   | VU
-  | VConstructor (Closure Tele)
-  | VData (Closure Tele)
+  | VTyCon Symbol [Value]
+  | VDataCon Symbol [Value]
   | VNeutral Neutral
   deriving (Show)
 
@@ -38,12 +39,12 @@ type Ty = Value
 data VEntry
   = VDef Symbol Value
   | VIsA Symbol Ty
-  | VDataDef Symbol Value [(Symbol, Value)]
+  | VTyDef Symbol Tele [(Symbol, Tele)]
   deriving (Show)
 
-type TcMonad = ReaderT Env (Either HpieError)
+type TcMonad = ReaderT Env (ExceptT HpieError IO)
 
-runTcMonad :: TcMonad a -> Env -> Either HpieError a
+runTcMonad :: TcMonad a -> Env -> ExceptT HpieError IO a
 runTcMonad = runReaderT
 
 extendEnv :: VEntry -> TcMonad a -> TcMonad a
@@ -88,9 +89,35 @@ searchV x = asks ctx >>= go
     go (VDef symbol v : es)
       | symbol == x = return v
       | otherwise = go es
+    go (_ : es) = go es
+
+searchTyCon :: Symbol -> TcMonad VEntry
+searchTyCon x = asks ctx >>= go
+  where
+    go [] = throwE (VarNotFound x)
+    go (v@(VTyDef symbol _ _) : es)
+      | symbol == x = return v
+      | otherwise = go es
+    go (_ : es) = go es
+
+searchTyConWithDataCon :: Symbol -> Symbol -> TcMonad (Tele, Tele)
+searchTyConWithDataCon tySymbol dataSymbol = do
+  tyCon <- searchTyCon tySymbol
+  case tyCon of
+    VTyDef _ teles dataCons -> do
+      dataTeles <- go dataCons
+      return (teles, dataTeles)
+  where
+    go [] = throwE (DataConMissMatch tySymbol dataSymbol)
+    go ((x, v) : xs)
+      | x == dataSymbol = return v
+      | otherwise = go xs
 
 throwE :: HpieError -> TcMonad a
-throwE e = lift (Left e)
+throwE = throwError
+
+logInfo :: (Show a) => a -> TcMonad ()
+logInfo s = liftIO $ print s
 
 close :: a -> TcMonad (Closure a)
 close t = do
