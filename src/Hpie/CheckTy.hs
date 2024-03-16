@@ -67,6 +67,9 @@ check (Lam x t) fTy = case fTy of
     tT <- Norm.doApplyClosure closure (VNeutral (NVar y))
     Env.extendEnv (VIsA y aT) (check t tT)
   _ -> failCheck "Pi Type" fTy
+check v@(Rec recf t) ty = do
+  vV <- Norm.eval v
+  Env.extendEnv (VDef recf vV) (check t ty)
 check (Prod first second) pTy = case pTy of
   (VSigma aT closure) -> do
     check first aT
@@ -84,6 +87,9 @@ check (DataCon dataSymbol dataArgs) ty = case ty of
       )
     return ()
   _ -> failCheck "User Def Type" ty
+check (Match term cases) ty = do
+  headTy <- infer term
+  mapM_ (tcCase headTy ty) cases
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'
@@ -93,6 +99,34 @@ convert v1 v2 = do
   e1 <- Norm.reify v1
   e2 <- Norm.reify v2
   AlphaEq.alphaEq e1 e2
+
+tcCase :: Ty -> Ty -> Case -> TcMonad ()
+tcCase headTy ty (Case pat term) = extendPat pat headTy (check term ty)
+
+extendPat :: Pattern -> Ty -> TcMonad a -> TcMonad a
+extendPat (PatVar x) ty tc = Env.extendEnv (VIsA x ty) tc
+extendPat (PatCon dataSymbol pats) (VTyCon tySymbol tyArgs) tc = do
+  (tyTeles, dataTeles) <- Env.searchTyConWithDataCon tySymbol dataSymbol
+  extendTeleArgs
+    tyTeles
+    tyArgs
+    (extendPatTele pats dataTeles tc)
+
+extendPatTele :: [Pattern] -> Tele -> TcMonad a -> TcMonad a
+extendPatTele pats (tele@(Def _ _) : teles) tc = do
+  extendTele [tele] (extendPatTele pats teles tc)
+extendPatTele (pat : pats) (tele@(IsA _ ty) : teles) tc = do
+  tyV <- Norm.eval ty
+  extendTele
+    [tele]
+    ( extendPat
+        pat
+        tyV
+        ( extendPatTele pats teles tc
+        )
+    )
+extendPatTele [] [] tc = tc
+extendPatTele _ _ _ = Env.throwE ArgNumMissMatch
 
 tcEntry :: Entry -> TcMonad VEntry
 tcEntry (IsA x a) = do

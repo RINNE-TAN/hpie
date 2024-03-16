@@ -40,8 +40,8 @@ rawEq l r
   | l == r = yes
   | otherwise = Alpha (\_ _ _ -> Left $ AlphaNotEq (show l) (show r))
 
-listEq :: [Term] -> [Term] -> Alpha ()
-listEq llist rlist = rawEq (length llist) (length rlist) *> traverse_ (uncurry eq) (zip llist rlist)
+listEq :: [a] -> [a] -> (a -> a -> Alpha ()) -> Alpha ()
+listEq llist rlist f = rawEq (length llist) (length rlist) *> traverse_ (uncurry f) (zip llist rlist)
 
 eq :: Term -> Term -> Alpha ()
 eq left right =
@@ -62,6 +62,7 @@ eq left right =
     (Arrow a1 b1, Arrow a2 b2) -> eq a1 b1 *> eq a2 b2
     (Lam x1 t1, Lam x2 t2) ->
       with x1 x2 (eq t1 t2)
+    (Rec x1 t1, Rec x2 t2) -> with x1 x2 (eq t1 t2)
     (App f1 arg1, App f2 arg2) -> eq f1 f2 *> eq arg1 arg2
     (Sigma x1 a1 b1, Sigma x2 a2 b2) ->
       eq a1 a2 *> with x1 x2 (eq b1 b2)
@@ -72,9 +73,15 @@ eq left right =
     (Second p1, Second p2) -> eq p1 p2
     (TyCon x1 args1, TyCon x2 args2) ->
       rawEq x1 x2
-        *> listEq args1 args2
+        *> listEq args1 args2 eq
     (DataCon x1 args1, DataCon x2 args2) ->
       rawEq x1 x2
-        *> listEq args1 args2
+        *> listEq args1 args2 eq
+    (Match term1 case1, Match term2 case2) ->
+      eq term1 term2
+        *> listEq
+          case1
+          case2
+          (\(Case pat1 c1) (Case pat2 c2) -> rawEq pat1 pat2 *> eq c1 c2)
     (U, U) -> yes
     (l, r) -> no l r

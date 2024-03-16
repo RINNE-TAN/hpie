@@ -2,13 +2,15 @@ module Hpie.Env where
 
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.Reader
-import Hpie.Types (HpieError (..), Symbol, Tele, Term)
+import Hpie.Types (Case, HpieError (..), Symbol, Tele, Term)
 
 data Env = Env
   { ctx :: [VEntry],
     bound :: [Symbol]
   }
-  deriving (Show)
+
+instance Show Env where
+  show _ = "Env(..)"
 
 initEnv :: Env
 initEnv = Env {ctx = [], bound = []}
@@ -19,6 +21,7 @@ data Closure a = Closure Env a
 data Value
   = VPi Value (Closure (Symbol, Term))
   | VLam (Closure (Symbol, Term))
+  | VRec Symbol (Closure Term)
   | VSigma Value (Closure (Symbol, Term))
   | VCons Value Value
   | VU
@@ -32,6 +35,7 @@ data Neutral
   | NApp Neutral Value
   | NFirst Neutral
   | NSecond Neutral
+  | NMatch Neutral [Case]
   deriving (Show)
 
 type Ty = Value

@@ -5,7 +5,7 @@ import Data.Functor
 import Hpie.Types
 
 keywords :: [String]
-keywords = ["U", "data"]
+keywords = ["U", "data", "where", "case", "of"]
 
 data PState = PState
   { tyConNames :: [Symbol],
@@ -62,7 +62,7 @@ chain p op = do
       do
         f <- op
         y <- p
-        rest (f x y)
+        f x <$> rest y
         <|> return x
 
 eof :: Parser ()
@@ -160,7 +160,10 @@ pVarOrCon = do
     else
       if i `elem` dnames
         then return (DataCon i [])
-        else return (Var i)
+        else
+          if i `elem` keywords
+            then failure (Unexpected "variable" i)
+            else return (Var i)
 
 pPi :: Parser Term
 pPi = do
@@ -197,11 +200,37 @@ pProd =
         Prod left <$> pTerm
     )
 
+pMatch :: Parser Term
+pMatch = do
+  tokens "case"
+  term <- pTerm
+  tokens "of"
+  cases <- many0 (tokens "|" *> pCase)
+  return (Match term cases)
+
+pCase :: Parser Case
+pCase = do
+  pat <- pPattern
+  tokens "->"
+  Case pat <$> pTerm
+
+pPattern :: Parser Pattern
+pPattern = pPatVar <|> pPatCon <|> pPatParens
+
+pPatVar :: Parser Pattern
+pPatVar = PatVar <$> variable
+
+pPatCon :: Parser Pattern
+pPatCon = PatCon <$> dataName <*> many0 pPattern
+
+pPatParens :: Parser Pattern
+pPatParens = parens pPattern
+
 pParens :: Parser Term
 pParens = parens pTerm
 
 pAtom :: Parser Term
-pAtom = choice [pU, pVarOrCon, pPi, pSigma, pLam, pProd, pParens]
+pAtom = choice [pU, pVarOrCon, pPi, pSigma, pLam, pProd, pMatch, pParens]
 
 pFirst :: Parser Term
 pFirst = do
@@ -259,6 +288,13 @@ pDef =
     tokens "="
     Def var <$> pTerm
 
+pRec :: Parser Entry
+pRec = do
+  tokens "@"
+  var <- variable
+  tokens "="
+  Def var . Rec var <$> pTerm
+
 pTele :: Parser Tele
 pTele = many0 (parens pIsANonDep <|> parens pIsA <|> brackets pDef)
 
@@ -281,7 +317,7 @@ pTyDef = do
 pProg :: Parser [Entry]
 pProg =
   many0
-    ( (pTyDef <|> pIsA <|> pDef)
+    ( (pTyDef <|> pIsA <|> pDef <|> pRec)
         <* tokens "."
     )
     <* eof

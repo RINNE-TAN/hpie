@@ -22,6 +22,7 @@ data Term
   | Pi Symbol Term Term
   | Arrow Term Term
   | Lam Symbol Term
+  | Rec Symbol Term
   | App Term Term
   | Sigma Symbol Term Term
   | Pair Term Term
@@ -30,7 +31,16 @@ data Term
   | Second Term
   | TyCon Symbol [Term]
   | DataCon Symbol [Term]
+  | Match Term [Case]
   | U
+
+data Case = Case Pattern Term
+  deriving (Show)
+
+data Pattern
+  = PatCon Symbol [Pattern]
+  | PatVar Symbol
+  deriving (Eq, Show)
 
 instance Show Term where
   show (Var x) = x
@@ -40,6 +50,7 @@ instance Show Term where
       else printf "Π(%s: %s) %s" x (show a) (show b)
   show (Arrow a b) = printf "%s -> %s" (show a) (show b)
   show (Lam x t) = printf "λ(%s) %s" (show x) (show t)
+  show (Rec x t) = printf "@(%s) %s" (show x) (show t)
   show (App f arg) = printf "(%s %s)" (show f) (show arg)
   show (Sigma x a b) =
     if x == "_"
@@ -51,6 +62,7 @@ instance Show Term where
   show (Second p) = printf "(Second %s)" (show p)
   show (TyCon symbol args) = printf "%s %s" (show symbol) (show args)
   show (DataCon symbol args) = printf "%s %s" (show symbol) (show args)
+  show (Match term cases) = printf "case %s of %s" (show term) (show cases)
   show U = "U"
 
 type TopLevel = Entry
@@ -73,6 +85,7 @@ data HpieError
   | VarNotFound String
   | DataConMissMatch String String
   | ArgNumMissMatch
+  | PatternNotMatch
   deriving (Show)
 
 data ParserError

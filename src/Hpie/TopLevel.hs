@@ -55,7 +55,7 @@ addDef entry = do
 runOne :: TopLevel -> TopMonad ()
 runOne entry = do
   vEntry <- tcEntry entry
-  logInfo entry
+  logInfo vEntry
   addDef vEntry
 
 topLevel :: String -> TopMonad ()
