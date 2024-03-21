@@ -88,8 +88,8 @@ check (DataCon dataSymbol dataArgs) ty = case ty of
     return ()
   _ -> failCheck "User Def Type" ty
 check (Match term cases) ty = do
-  headTy <- infer term
-  mapM_ (tcCase headTy ty) cases
+  termTy <- infer term
+  mapM_ (tcCase termTy ty) cases
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'
@@ -101,7 +101,7 @@ convert v1 v2 = do
   AlphaEq.alphaEq e1 e2
 
 tcCase :: Ty -> Ty -> Case -> TcMonad ()
-tcCase headTy ty (Case pat term) = extendPat pat headTy (check term ty)
+tcCase termTy ty (Case pat term) = extendPat pat termTy (check term ty)
 
 extendPat :: Pattern -> Ty -> TcMonad a -> TcMonad a
 extendPat (PatVar x) ty tc = Env.extendEnv (VIsA x ty) tc
@@ -186,5 +186,11 @@ extendTeleArgs :: Tele -> [Value] -> TcMonad a -> TcMonad a
 extendTeleArgs (entry@(Def _ _) : teles) args tc = do
   entryV <- tcEntry entry
   Env.extendEnv entryV (extendTeleArgs teles args tc)
-extendTeleArgs (IsA x _ : teles) (arg : args) tc = Env.extendEnv (VDef x arg) (extendTeleArgs teles args tc)
+extendTeleArgs (entry@(IsA x _) : teles) (arg : args) tc = do
+  -- TODO : unify
+  entryV <- tcEntry entry
+  Env.extendEnv
+    entryV
+    ( Env.extendEnv (VDef x arg) (extendTeleArgs teles args tc)
+    )
 extendTeleArgs [] [] tc = tc

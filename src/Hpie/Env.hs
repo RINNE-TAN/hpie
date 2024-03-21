@@ -123,6 +123,11 @@ throwE = throwError
 logInfo :: (Show a) => a -> TcMonad ()
 logInfo s = liftIO $ print s
 
+printEnv :: TcMonad ()
+printEnv = do
+  env <- asks ctx
+  liftIO $ mapM_ print env
+
 close :: a -> TcMonad (Closure a)
 close t = do
   e <- getEnv

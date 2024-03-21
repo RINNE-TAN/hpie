@@ -1,13 +1,14 @@
-data Nat where
-  | Zero
-  | Succ (Nat)
+data N where
+  | Z
+  | S (N)
+.  
+
+data Eq (A : U) (a : A) (b : A) where
+  | Refl [a = b]
 .
 
-plus : Nat -> Nat -> Nat.
-@plus = \l r. case l of
-  | Zero -> r
-  | Succ n -> Succ (plus n r)
+sym : [A : U] => [x : A] => [y : A] => Eq A x y -> Eq A y x.
+sym = \ A x y pf.
+  case pf of
+    | Refl -> Refl
 .
-
-y : Nat.
-y = plus (Succ (Succ Zero)) (Succ (Succ Zero)).
