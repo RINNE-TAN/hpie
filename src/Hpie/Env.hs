@@ -2,10 +2,10 @@ module Hpie.Env where
 
 import Control.Monad.Except (ExceptT, MonadError (throwError))
 import Control.Monad.Reader
-import Hpie.Types (Case, HpieError (..), Symbol, Tele, Term)
+import Hpie.Types
 
 data Env = Env
-  { ctx :: [VEntry],
+  { ctx :: [Entry],
     bound :: [Symbol]
   }
 
@@ -21,7 +21,6 @@ data Closure a = Closure Env a
 data Value
   = VPi Value (Closure (Symbol, Term))
   | VLam (Closure (Symbol, Term))
-  | VRec Symbol (Closure Term)
   | VSigma Value (Closure (Symbol, Term))
   | VCons Value Value
   | VU
@@ -38,20 +37,14 @@ data Neutral
   | NMatch Neutral [Case]
   deriving (Show)
 
-type Ty = Value
-
-data VEntry
-  = VDef Symbol Value
-  | VIsA Symbol Ty
-  | VTyDef Symbol Tele [(Symbol, Tele)]
-  deriving (Show)
+type Ty = Term
 
 type TcMonad = ReaderT Env (ExceptT HpieError IO)
 
 runTcMonad :: TcMonad a -> Env -> ExceptT HpieError IO a
 runTcMonad = runReaderT
 
-extendEnv :: VEntry -> TcMonad a -> TcMonad a
+extendEnv :: Entry -> TcMonad a -> TcMonad a
 extendEnv entry =
   local
     ( \e@Env {ctx = c} ->
@@ -78,28 +71,16 @@ searchTy :: Symbol -> TcMonad Ty
 searchTy x = asks ctx >>= go
   where
     go [] = throwE (VarNotFound x)
-    go (VIsA symbol ty : es)
+    go (IsA symbol ty : es)
       | symbol == x = return ty
       | otherwise = go es
     go (_ : es) = go es
 
-searchV :: Symbol -> TcMonad Value
-searchV x = asks ctx >>= go
-  where
-    go [] = throwE (VarNotFound x)
-    go (VIsA symbol _ : es)
-      | symbol == x = return (VNeutral (NVar x))
-      | otherwise = go es
-    go (VDef symbol v : es)
-      | symbol == x = return v
-      | otherwise = go es
-    go (_ : es) = go es
-
-searchTyCon :: Symbol -> TcMonad VEntry
+searchTyCon :: Symbol -> TcMonad Entry
 searchTyCon x = asks ctx >>= go
   where
     go [] = throwE (VarNotFound x)
-    go (v@(VTyDef symbol _ _) : es)
+    go (v@(TyDef symbol _ _) : es)
       | symbol == x = return v
       | otherwise = go es
     go (_ : es) = go es
@@ -108,12 +89,12 @@ searchTyConWithDataCon :: Symbol -> Symbol -> TcMonad (Tele, Tele)
 searchTyConWithDataCon tySymbol dataSymbol = do
   tyCon <- searchTyCon tySymbol
   case tyCon of
-    VTyDef _ teles dataCons -> do
+    TyDef _ teles dataCons -> do
       dataTeles <- go dataCons
       return (teles, dataTeles)
   where
     go [] = throwE (DataConMissMatch tySymbol dataSymbol)
-    go ((x, v) : xs)
+    go ((DataDef x v) : xs)
       | x == dataSymbol = return v
       | otherwise = go xs
 
@@ -126,7 +107,11 @@ logInfo s = liftIO $ print s
 printEnv :: TcMonad ()
 printEnv = do
   env <- asks ctx
-  liftIO $ mapM_ print env
+  liftIO $
+    do
+      print "-------------Env-------------"
+      mapM_ print env
+      print "-----------------------------"
 
 close :: a -> TcMonad (Closure a)
 close t = do

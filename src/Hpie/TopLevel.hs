@@ -4,7 +4,7 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Reader
 import Control.Monad.State (StateT (runStateT), get, put)
 import qualified Hpie.CheckTy as CheckTy
-import Hpie.Env (Env (..), Ty, VEntry (..), Value)
+import Hpie.Env (Env (..), Ty, Value)
 import qualified Hpie.Env as Env
 import qualified Hpie.Norm as Norm
 import Hpie.Parser
@@ -38,16 +38,16 @@ reify = tc2top . Norm.reify
 searchTy :: Symbol -> TopMonad Ty
 searchTy = tc2top . Env.searchTy
 
-check :: Term -> Value -> TopMonad ()
-check term value = tc2top $ CheckTy.check term value
+check :: Term -> Term -> TopMonad ()
+check term ty = tc2top $ CheckTy.check term ty
 
-tcEntry :: Entry -> TopMonad VEntry
+tcEntry :: Entry -> TopMonad Entry
 tcEntry = tc2top . CheckTy.tcEntry
 
 logInfo :: (Show a) => a -> TopMonad ()
 logInfo = tc2top . Env.logInfo
 
-addDef :: VEntry -> TopMonad ()
+addDef :: Entry -> TopMonad ()
 addDef entry = do
   env@Env {ctx = c} <- get
   put $ env {ctx = entry : c}

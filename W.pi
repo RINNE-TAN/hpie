@@ -1,14 +1,14 @@
 data N where
   | Z
   | S (N)
-.  
-
-data Eq (A : U) (a : A) (b : A) where
-  | Refl [a = b]
 .
 
-sym : [A : U] => [x : A] => [y : A] => Eq A x y -> Eq A y x.
-sym = \ A x y pf.
-  case pf of
-    | Refl -> Refl
+plus : N -> N -> N.
+plus = \l r.
+  case l of
+    | Z -> r
+    | S n -> S (plus n r)
 .
+
+x : N.
+x = plus (S (S Z)) (S Z).

@@ -1,7 +1,8 @@
 module Hpie.Norm where
 
 import Control.Monad.Except (catchError)
-import Hpie.Env (Closure (..), Neutral (..), TcMonad, VEntry (..), Value (..))
+import Control.Monad.Reader
+import Hpie.Env (Closure (..), Neutral (..), TcMonad, Value (..))
 import qualified Hpie.Env as Env
 import Hpie.Types
 
@@ -11,12 +12,23 @@ fresh x =
     bound <- Env.getBound
     return (freshen bound x)
 
+searchV :: Symbol -> TcMonad Value
+searchV x = asks Env.ctx >>= go
+  where
+    go [] = Env.throwE (VarNotFound x)
+    go (IsA symbol _ : es)
+      | symbol == x = return (VNeutral (NVar x))
+      | otherwise = go es
+    go (Def symbol v : es)
+      | symbol == x = eval v
+      | otherwise = go es
+    go (_ : es) = go es
+
 eval :: Term -> TcMonad Value
-eval (Var s) = Env.searchV s
+eval (Var s) = searchV s
 eval (Pi x a b) = VPi <$> eval a <*> Env.close (x, b)
 eval (Arrow a b) = VPi <$> eval a <*> Env.close ("_", b)
 eval (Lam x t) = VLam <$> Env.close (x, t)
-eval (Rec x t) = VRec x <$> Env.close t
 eval (App f arg) = do
   fV <- eval f
   argV <- eval arg
@@ -45,30 +57,20 @@ doApplyMatch v@(VDataCon _ _) cases = go cases
     go [] = Env.throwE PatternNotMatch
 
 extendWithPattern :: Value -> Pattern -> TcMonad a -> TcMonad a
-extendWithPattern v (PatVar x) tc = Env.extendEnv (VDef x v) tc
+extendWithPattern v (PatVar x) tc = do
+  vNorm <- reify v
+  Env.extendEnv (Def x vNorm) tc
 extendWithPattern (VDataCon dataSymbol args) (PatCon patSymbol pats) tc
   | dataSymbol == patSymbol && length args == length pats =
       foldr (\(arg, pat) work -> extendWithPattern arg pat work) tc (zip args pats)
   | otherwise = Env.throwE PatternNotMatch
 
-doApplyClosure :: Closure (Symbol, Term) -> Value -> TcMonad Value
-doApplyClosure (Closure env (s, t)) arg =
-  Env.withEnv
-    env
-    ( Env.extendEnv (VDef s arg) (eval t)
-    )
-
 doApply :: Value -> Value -> TcMonad Value
-doApply (VLam closure) arg = doApplyClosure closure arg
-doApply v@(VRec recf (Closure env t)) arg =
+doApply (VLam (Closure env (s, t))) arg = do
+  argNorm <- reify arg
   Env.withEnv
     env
-    ( Env.extendEnv
-        (VDef recf v)
-        ( do
-            tV <- eval t
-            doApply tV arg
-        )
+    ( Env.extendEnv (Def s argNorm) (eval t)
     )
 doApply (VNeutral ne) arg = return $ VNeutral (NApp ne arg)
 doApply f arg = error $ "fun is " ++ show f ++ "\n" ++ "arg is " ++ show arg
@@ -82,11 +84,14 @@ doSecond (VCons _ r) = return r
 doSecond (VNeutral ne) = return $ VNeutral (NSecond ne)
 
 reifyClosure :: Closure (Symbol, Term) -> TcMonad (Symbol, Term)
-reifyClosure closure@(Closure _ (x, _)) = do
+reifyClosure (Closure _ (x, term)) = do
   y <- fresh x
-  bV <- doApplyClosure closure (VNeutral (NVar y))
-  bT <- Env.inBound y (reify bV)
-  return (y, bT)
+  Env.extendEnv
+    (IsA y TopTy)
+    ( do
+        bT <- Env.inBound y (nbe term)
+        return (y, bT)
+    )
 
 reify :: Value -> TcMonad Term
 reify (VPi a closure) = do
@@ -96,7 +101,6 @@ reify (VPi a closure) = do
 reify (VLam closure) = do
   (y, bT) <- reifyClosure closure
   return $ Lam y bT
-reify (VRec recf (Closure _ term)) = return (Rec recf term)
 reify (VSigma a closure) = do
   aT <- reify a
   (y, bT) <- reifyClosure closure
@@ -115,3 +119,9 @@ reifyNeutral (NSecond p) = Second <$> reifyNeutral p
 reifyNeutral (NMatch term cases) = do
   termN <- reifyNeutral term
   return $ Match termN cases
+
+nbe :: Term -> TcMonad Term
+nbe term = eval term >>= reify
+
+doSubst :: (Symbol, Term) -> Term -> TcMonad Term
+doSubst (x, t) body = Env.extendEnv (Def x t) (nbe body)

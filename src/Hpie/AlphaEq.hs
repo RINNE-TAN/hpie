@@ -70,7 +70,6 @@ alphaEq = \t1 t2 -> alpha2tc (go t1 t2)
     go (Arrow a1 b1) (Arrow a2 b2) = go a1 a2 *> go b1 b2
     go (Lam x1 term1) (Lam x2 term2) =
       with x1 x2 (go term1 term2)
-    go (Rec x1 term1) (Rec x2 term2) = with x1 x2 (go term1 term2)
     go (App f1 arg1) (App f2 arg2) = go f1 f2 *> go arg1 arg2
     go (Sigma x1 a1 b1) (Sigma x2 a2 b2) =
       go a1 a2 *> with x1 x2 (go b1 b2)

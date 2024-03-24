@@ -288,13 +288,6 @@ pDef =
     tokens "="
     Def var <$> pTerm
 
-pRec :: Parser Entry
-pRec = do
-  tokens "@"
-  var <- variable
-  tokens "="
-  Def var . Rec var <$> pTerm
-
 pTele :: Parser Tele
 pTele = many0 (parens pIsANonDep <|> parens pIsA <|> brackets pDef)
 
@@ -317,7 +310,7 @@ pTyDef = do
 pProg :: Parser [Entry]
 pProg =
   many0
-    ( (pTyDef <|> pIsA <|> pDef <|> pRec)
+    ( (pTyDef <|> pIsA <|> pDef)
         <* tokens "."
     )
     <* eof
