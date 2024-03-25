@@ -15,28 +15,6 @@ instance Show Env where
 initEnv :: Env
 initEnv = Env {ctx = [], bound = []}
 
-data Closure a = Closure Env a
-  deriving (Show)
-
-data Value
-  = VPi Value (Closure (Symbol, Term))
-  | VLam (Closure (Symbol, Term))
-  | VSigma Value (Closure (Symbol, Term))
-  | VCons Value Value
-  | VU
-  | VTyCon Symbol [Value]
-  | VDataCon Symbol [Value]
-  | VNeutral Neutral
-  deriving (Show)
-
-data Neutral
-  = NVar Symbol
-  | NApp Neutral Value
-  | NFirst Neutral
-  | NSecond Neutral
-  | NMatch Neutral [Case]
-  deriving (Show)
-
 type Ty = Term
 
 type TcMonad = ReaderT Env (ExceptT HpieError IO)
@@ -66,6 +44,18 @@ inBound x =
 
 getBound :: TcMonad [Symbol]
 getBound = asks bound
+
+searchV :: Symbol -> TcMonad Term
+searchV x = asks ctx >>= go
+  where
+    go [] = throwE (VarNotFound x)
+    go (IsA symbol _ : es)
+      | symbol == x = return (Var x)
+      | otherwise = go es
+    go (Def symbol v : es)
+      | symbol == x = return v
+      | otherwise = go es
+    go (_ : es) = go es
 
 searchTy :: Symbol -> TcMonad Ty
 searchTy x = asks ctx >>= go
@@ -112,8 +102,3 @@ printEnv = do
       print "-------------Env-------------"
       mapM_ print env
       print "-----------------------------"
-
-close :: a -> TcMonad (Closure a)
-close t = do
-  e <- getEnv
-  return (Closure e t)

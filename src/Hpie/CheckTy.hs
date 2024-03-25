@@ -28,7 +28,7 @@ infer (App f arg) = do
     (Pi x aT bT) -> do
       check arg aT
       argNorm <- Norm.nbe arg
-      Norm.doSubst (x, argNorm) bT
+      Norm.doSubst (x, argNorm) bT >>= Norm.nbe
     _ -> failCheck "Pi Type" fTy
 infer (Sigma x a b) = do
   check a U
@@ -48,8 +48,8 @@ infer (Second p) = do
   pTy <- infer p
   case pTy of
     (Sigma x _ bT) -> do
-      firstNorm <- Norm.eval p >>= Norm.doFirst >>= Norm.reify
-      Norm.doSubst (x, firstNorm) bT
+      firstNorm <- Norm.nbe (First p)
+      Norm.doSubst (x, firstNorm) bT >>= Norm.nbe
     _ -> failCheck "Sigma Type" pTy
 infer (TyCon symbol args) = do
   tyCon <- Env.searchTyCon symbol
@@ -66,7 +66,7 @@ check (Lam arg t) fTy = case fTy of
     Env.extendEnv
       (IsA y aT)
       ( do
-          tT <- Norm.doSubst (x, Var y) bT
+          tT <- Norm.doSubst (x, Var y) bT >>= Norm.nbe
           check t tT
       )
   _ -> failCheck "Pi Type" fTy
@@ -74,7 +74,7 @@ check (Prod first second) pTy = case pTy of
   (Sigma x aT bT) -> do
     check first aT
     firstNorm <- Norm.nbe first
-    secondT <- Norm.doSubst (x, firstNorm) bT
+    secondT <- Norm.doSubst (x, firstNorm) bT >>= Norm.nbe
     check second secondT
   _ -> failCheck "Sigma Type" pTy
 check (DataCon dataSymbol dataArgs) ty = case ty of
@@ -90,7 +90,6 @@ check (DataCon dataSymbol dataArgs) ty = case ty of
 check (Match term cases) ty = do
   termTy <- infer term
   mapM_ (tcCase termTy ty) cases
-check _ TopTy = return ()
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'

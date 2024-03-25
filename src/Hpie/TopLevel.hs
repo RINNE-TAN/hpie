@@ -4,9 +4,8 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Reader
 import Control.Monad.State (StateT (runStateT), get, put)
 import qualified Hpie.CheckTy as CheckTy
-import Hpie.Env (Env (..), Ty, Value)
+import Hpie.Env (Env (..), Ty)
 import qualified Hpie.Env as Env
-import qualified Hpie.Norm as Norm
 import Hpie.Parser
 import Hpie.Types
 
@@ -28,12 +27,6 @@ parser input pa =
   case runParser pa input of
     Left e -> error $ show e
     Right v -> return v
-
-eval :: Term -> TopMonad Value
-eval = tc2top . Norm.eval
-
-reify :: Value -> TopMonad Term
-reify = tc2top . Norm.reify
 
 searchTy :: Symbol -> TopMonad Ty
 searchTy = tc2top . Env.searchTy

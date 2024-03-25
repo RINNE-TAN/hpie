@@ -1,8 +1,7 @@
 module Hpie.Norm where
 
 import Control.Monad.Except (catchError)
-import Control.Monad.Reader
-import Hpie.Env (Closure (..), Neutral (..), TcMonad, Value (..))
+import Hpie.Env (TcMonad)
 import qualified Hpie.Env as Env
 import Hpie.Types
 
@@ -12,116 +11,65 @@ fresh x =
     bound <- Env.getBound
     return (freshen bound x)
 
-searchV :: Symbol -> TcMonad Value
-searchV x = asks Env.ctx >>= go
-  where
-    go [] = Env.throwE (VarNotFound x)
-    go (IsA symbol _ : es)
-      | symbol == x = return (VNeutral (NVar x))
-      | otherwise = go es
-    go (Def symbol v : es)
-      | symbol == x = eval v
-      | otherwise = go es
-    go (_ : es) = go es
+nbe :: Term -> TcMonad Term
+nbe (Var x) = Env.searchV x
+nbe (Arrow aT bT) = return (Pi "_" aT bT)
+nbe (Pair aT bT) = return (Sigma "_" aT bT)
+nbe (App f arg) = do
+  fNorm <- nbe f
+  case fNorm of
+    Lam x body -> doSubst (x, arg) body >>= nbe
+    _ -> return (App fNorm arg)
+nbe (First p) = do
+  pNorm <- nbe p
+  case pNorm of
+    Prod l _ -> return l
+    _ -> return (First pNorm)
+nbe (Second p) = do
+  pNorm <- nbe p
+  case pNorm of
+    Prod _ r -> return r
+    _ -> return (Second pNorm)
+nbe (Match term cases) = do
+  termNorm <- nbe term
+  case termNorm of
+    v@(DataCon _ _) ->
+      do
+        let go ((Case pt body) : cs) =
+              extendWithPattern v pt (nbe body)
+                `catchError` (\_ -> go cs)
+            go [] = Env.throwE PatternNotMatch
+        go cases
+    _ -> return (Match termNorm cases)
+nbe other = return other
 
-eval :: Term -> TcMonad Value
-eval (Var s) = searchV s
-eval (Pi x a b) = VPi <$> eval a <*> Env.close (x, b)
-eval (Arrow a b) = VPi <$> eval a <*> Env.close ("_", b)
-eval (Lam x t) = VLam <$> Env.close (x, t)
-eval (App f arg) = do
-  fV <- eval f
-  argV <- eval arg
-  doApply fV argV
-eval (Sigma x a b) = VSigma <$> eval a <*> Env.close (x, b)
-eval (Pair a b) = VSigma <$> eval a <*> Env.close ("_", b)
-eval (Prod l r) = VCons <$> eval l <*> eval r
-eval (First p) = eval p >>= doFirst
-eval (Second p) = eval p >>= doSecond
-eval (TyCon symbol args) = VTyCon symbol <$> mapM eval args
-eval (DataCon symbol args) = VDataCon symbol <$> mapM eval args
-eval (Match term cases) = do
-  termV <- eval term
-  doApplyMatch termV cases
-eval U = return VU
-
-doApplyMatch :: Value -> [Case] -> TcMonad Value
-doApplyMatch (VNeutral ne) cases = return $ VNeutral (NMatch ne cases)
-doApplyMatch v@(VDataCon _ _) cases = go cases
-  where
-    go ((Case pt body) : cs) =
-      ( do
-          extendWithPattern v pt (eval body)
-      )
-        `catchError` (\_ -> go cs)
-    go [] = Env.throwE PatternNotMatch
-
-extendWithPattern :: Value -> Pattern -> TcMonad a -> TcMonad a
-extendWithPattern v (PatVar x) tc = do
-  vNorm <- reify v
+extendWithPattern :: Term -> Pattern -> TcMonad a -> TcMonad a
+extendWithPattern vNorm (PatVar x) tc = do
   Env.extendEnv (Def x vNorm) tc
-extendWithPattern (VDataCon dataSymbol args) (PatCon patSymbol pats) tc
+extendWithPattern (DataCon dataSymbol args) (PatCon patSymbol pats) tc
   | dataSymbol == patSymbol && length args == length pats =
       foldr (\(arg, pat) work -> extendWithPattern arg pat work) tc (zip args pats)
   | otherwise = Env.throwE PatternNotMatch
 
-doApply :: Value -> Value -> TcMonad Value
-doApply (VLam (Closure env (s, t))) arg = do
-  argNorm <- reify arg
-  Env.withEnv
-    env
-    ( Env.extendEnv (Def s argNorm) (eval t)
-    )
-doApply (VNeutral ne) arg = return $ VNeutral (NApp ne arg)
-doApply f arg = error $ "fun is " ++ show f ++ "\n" ++ "arg is " ++ show arg
-
-doFirst :: Value -> TcMonad Value
-doFirst (VCons l _) = return l
-doFirst (VNeutral ne) = return $ VNeutral (NFirst ne)
-
-doSecond :: Value -> TcMonad Value
-doSecond (VCons _ r) = return r
-doSecond (VNeutral ne) = return $ VNeutral (NSecond ne)
-
-reifyClosure :: Closure (Symbol, Term) -> TcMonad (Symbol, Term)
-reifyClosure (Closure _ (x, term)) = do
-  y <- fresh x
-  Env.extendEnv
-    (IsA y TopTy)
-    ( do
-        bT <- Env.inBound y (nbe term)
-        return (y, bT)
-    )
-
-reify :: Value -> TcMonad Term
-reify (VPi a closure) = do
-  aT <- reify a
-  (y, bT) <- reifyClosure closure
-  return $ Pi y aT bT
-reify (VLam closure) = do
-  (y, bT) <- reifyClosure closure
-  return $ Lam y bT
-reify (VSigma a closure) = do
-  aT <- reify a
-  (y, bT) <- reifyClosure closure
-  return $ Sigma y aT bT
-reify (VCons l r) = Prod <$> reify l <*> reify r
-reify (VTyCon symbol args) = TyCon symbol <$> mapM reify args
-reify (VDataCon symbol args) = DataCon symbol <$> mapM reify args
-reify VU = return U
-reify (VNeutral neu) = reifyNeutral neu
-
-reifyNeutral :: Neutral -> TcMonad Term
-reifyNeutral (NVar x) = return (Var x)
-reifyNeutral (NApp f arg) = App <$> reifyNeutral f <*> reify arg
-reifyNeutral (NFirst p) = First <$> reifyNeutral p
-reifyNeutral (NSecond p) = Second <$> reifyNeutral p
-reifyNeutral (NMatch term cases) = do
-  termN <- reifyNeutral term
-  return $ Match termN cases
-
-nbe :: Term -> TcMonad Term
-nbe term = eval term >>= reify
-
 doSubst :: (Symbol, Term) -> Term -> TcMonad Term
-doSubst (x, t) body = Env.extendEnv (Def x t) (nbe body)
+doSubst (x, t) (Var y) | x == y = return t
+doSubst (x, _) (Var y) | x /= y = return (Var y)
+doSubst (x, t) (Pi y aT bT) | x /= y = Pi x <$> doSubst (x, t) aT <*> doSubst (x, t) bT
+doSubst (x, t) (Pi y aT bT) | x == y = Pi x <$> doSubst (x, t) aT <*> return bT
+doSubst subst (Arrow aT bT) = doSubst subst (Pi "_" aT bT)
+doSubst (x, _) (Lam y body) | x == y = return (Lam y body)
+doSubst (x, t) (Lam y body) | x /= y = Lam y <$> doSubst (x, t) body
+doSubst subst (App f arg) = App <$> doSubst subst f <*> doSubst subst arg
+doSubst (x, t) (Sigma y aT bT) | x /= y = Sigma x <$> doSubst (x, t) aT <*> doSubst (x, t) bT
+doSubst (x, t) (Sigma y aT bT) | x == y = Sigma x <$> doSubst (x, t) aT <*> return bT
+doSubst subst (Pair aT bT) = doSubst subst (Sigma "_" aT bT)
+doSubst subst (Prod l r) = Prod <$> doSubst subst l <*> doSubst subst r
+doSubst subst (First p) = First <$> doSubst subst p
+doSubst subst (Second p) = Second <$> doSubst subst p
+doSubst subst (TyCon name args) = TyCon name <$> mapM (doSubst subst) args
+doSubst subst (DataCon name args) = DataCon name <$> mapM (doSubst subst) args
+doSubst subst (Match t cases) = Match <$> doSubst subst t <*> mapM (doSubstCase subst) cases
+doSubst _ U = return U
+
+doSubstCase :: (Symbol, Term) -> Case -> TcMonad Case
+doSubstCase subst (Case pt term) = Case pt <$> doSubst subst term

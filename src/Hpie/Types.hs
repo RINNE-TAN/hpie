@@ -31,7 +31,6 @@ data Term
   | TyCon Symbol [Term]
   | DataCon Symbol [Term]
   | Match Term [Case]
-  | TopTy
   | U
 
 data Case = Case Pattern Term
