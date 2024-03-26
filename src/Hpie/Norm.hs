@@ -1,6 +1,6 @@
 module Hpie.Norm where
 
-import Control.Monad.Except (catchError)
+import Control.Monad.Except (catchError, zipWithM)
 import Hpie.Env (TcMonad)
 import qualified Hpie.Env as Env
 import Hpie.Types
@@ -20,6 +20,7 @@ nbe (App f arg) = do
   case fNorm of
     Lam x body -> doSubst (x, arg) body >>= nbe
     _ -> return (App fNorm arg)
+nbe (Prod l r) = Prod <$> nbe l <*> nbe r
 nbe (First p) = do
   pNorm <- nbe p
   case pNorm of
@@ -30,25 +31,30 @@ nbe (Second p) = do
   case pNorm of
     Prod _ r -> return r
     _ -> return (Second pNorm)
+nbe (DataCon name args) = DataCon name <$> mapM nbe args
+nbe (TyCon name args) = TyCon name <$> mapM nbe args
 nbe (Match term cases) = do
   termNorm <- nbe term
   case termNorm of
     v@(DataCon _ _) ->
       do
         let go ((Case pt body) : cs) =
-              extendWithPattern v pt (nbe body)
+              ( do
+                  substs <- extendWithPattern v pt
+                  doSubsts substs body >>= nbe
+              )
                 `catchError` (\_ -> go cs)
             go [] = Env.throwE PatternNotMatch
         go cases
     _ -> return (Match termNorm cases)
+nbe U = return U
 nbe other = return other
 
-extendWithPattern :: Term -> Pattern -> TcMonad a -> TcMonad a
-extendWithPattern vNorm (PatVar x) tc = do
-  Env.extendEnv (Def x vNorm) tc
-extendWithPattern (DataCon dataSymbol args) (PatCon patSymbol pats) tc
+extendWithPattern :: Term -> Pattern -> TcMonad [(Symbol, Term)]
+extendWithPattern vNorm (PatVar x) = return [(x, vNorm)]
+extendWithPattern (DataCon dataSymbol args) (PatCon patSymbol pats)
   | dataSymbol == patSymbol && length args == length pats =
-      foldr (\(arg, pat) work -> extendWithPattern arg pat work) tc (zip args pats)
+      concat <$> zipWithM extendWithPattern args pats
   | otherwise = Env.throwE PatternNotMatch
 
 doSubst :: (Symbol, Term) -> Term -> TcMonad Term
@@ -73,3 +79,7 @@ doSubst _ U = return U
 
 doSubstCase :: (Symbol, Term) -> Case -> TcMonad Case
 doSubstCase subst (Case pt term) = Case pt <$> doSubst subst term
+
+doSubsts :: [(Symbol, Term)] -> Term -> TcMonad Term
+doSubsts [] term = return term
+doSubsts (subst : substs) term = doSubst subst term >>= doSubsts substs
