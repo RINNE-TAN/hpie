@@ -29,6 +29,9 @@ extendEnv entry =
         e {ctx = entry : c}
     )
 
+extendTele :: Tele -> TcMonad a -> TcMonad a
+extendTele es tc = foldr extendEnv tc es
+
 withEnv :: Env -> TcMonad a -> TcMonad a
 withEnv e = local (const e)
 

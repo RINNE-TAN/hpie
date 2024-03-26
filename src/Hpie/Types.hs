@@ -84,6 +84,7 @@ data HpieError
   | DataConMissMatch String String
   | ArgNumMissMatch
   | PatternNotMatch
+  | CanNotUnify
   deriving (Show)
 
 data ParserError

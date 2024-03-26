@@ -3,12 +3,17 @@ data N where
   | S (N)
 .
 
-plus : N -> N -> N.
-plus = \l r.
-  case l of
-    | Z -> r
-    | S n -> S (plus n r)
+data Eq (A : U) (a : A) (b : A) where
+  | Refl [a = b]
 .
 
-x : N.
-x = plus (S (S Z)) (S Z).
+sym : [A : U] => [x : A] => [y : A] => Eq A x y -> Eq A y x.
+sym = \A x y pf.case pf of
+  | Refl -> Refl
+.
+
+trans : [A : U] => [x : A] => [y : A] => [z : A] => (Eq A x z) -> (Eq A z y) -> (Eq A x y).
+trans = \A x y z pf1 pf2 . 
+  case pf2 of 
+  | Refl -> pf1 
+.

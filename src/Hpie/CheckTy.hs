@@ -54,20 +54,16 @@ infer (Second p) = do
 infer (TyCon symbol args) = do
   tyCon <- Env.searchTyCon symbol
   case tyCon of
-    TyDef _ teles _ -> tcTeleArgs teles args
-  return U
+    TyDef _ teles _ -> tcTeleArgs teles args >> return U
 infer U = return U
 infer other = Env.throwE $ CanNotInfer (show other)
 
 check :: Term -> Ty -> TcMonad ()
 check (Lam arg t) fTy = case fTy of
   (Pi x aT bT) -> do
-    y <- Norm.fresh arg
-    Env.extendEnv
-      (IsA y aT)
-      ( do
-          tT <- Norm.doSubst (x, Var y) bT >>= Norm.nbe
-          check t tT
+    Env.extendTele
+      [IsA x aT, IsA arg aT]
+      ( Norm.nbe bT >>= check t
       )
   _ -> failCheck "Pi Type" fTy
 check (Prod first second) pTy = case pTy of
@@ -80,11 +76,11 @@ check (Prod first second) pTy = case pTy of
 check (DataCon dataSymbol dataArgs) ty = case ty of
   (TyCon tySymbol tyArgs) -> do
     (tyTeles, dataTeles) <- Env.searchTyConWithDataCon tySymbol dataSymbol
-    extendTeleArgs
-      tyTeles
-      tyArgs
-      ( tcTeleArgs dataTeles dataArgs
-      )
+    newTyTeles <- tcTeleArgs tyTeles tyArgs
+    _ <-
+      Env.extendTele
+        newTyTeles
+        (tcTeleArgs dataTeles dataArgs)
     return ()
   _ -> failCheck "User Def Type" ty
 check (Match term cases) ty = do
@@ -101,32 +97,36 @@ convert v1 v2 = do
   AlphaEq.alphaEq e1 e2
 
 tcCase :: Ty -> Ty -> Case -> TcMonad ()
-tcCase termTy ty (Case pat term) = extendPat pat termTy (check term ty)
+tcCase termTy ty (Case pat term) = do
+  patTeles <- tcPat pat termTy
+  Env.extendTele
+    patTeles
+    (check term ty)
 
-extendPat :: Pattern -> Ty -> TcMonad a -> TcMonad a
-extendPat (PatVar x) ty tc = Env.extendEnv (IsA x ty) tc
-extendPat (PatCon dataSymbol pats) (TyCon tySymbol tyArgs) tc = do
+tcPat :: Pattern -> Ty -> TcMonad Tele
+tcPat (PatVar x) ty = return [IsA x ty]
+tcPat (PatCon dataSymbol pats) (TyCon tySymbol tyArgs) = do
   (tyTeles, dataTeles) <- Env.searchTyConWithDataCon tySymbol dataSymbol
-  extendTeleArgs
-    tyTeles
-    tyArgs
-    (extendPatTele pats dataTeles tc)
+  newTyTeles <- tcTeleArgs tyTeles tyArgs
+  Env.extendTele
+    newTyTeles
+    (tcPatTele pats dataTeles)
 
-extendPatTele :: [Pattern] -> Tele -> TcMonad a -> TcMonad a
-extendPatTele pats (tele@(Def _ _) : teles) tc = do
-  extendTele [tele] (extendPatTele pats teles tc)
-extendPatTele (pat : pats) (tele@(IsA _ ty) : teles) tc = do
+tcPatTele :: [Pattern] -> Tele -> TcMonad Tele
+tcPatTele pats (Def x term : teles) = do
+  xNorm <- Norm.nbe (Var x)
+  termNorm <- Norm.nbe term
+  unifyTeles <- AlphaEq.unify xNorm termNorm
+  let tele = unifyTeles
+  telesV <- Env.extendTele tele (tcPatTele pats teles)
+  return (tele ++ telesV)
+tcPatTele (pat : pats) (tele@(IsA _ ty) : teles) = do
   tyV <- Norm.nbe ty
-  extendTele
-    [tele]
-    ( extendPat
-        pat
-        tyV
-        ( extendPatTele pats teles tc
-        )
-    )
-extendPatTele [] [] tc = tc
-extendPatTele _ _ _ = Env.throwE ArgNumMissMatch
+  patTelesV <- tcPat pat tyV
+  telesV <- Env.extendTele (tele : patTelesV) (tcPatTele pats teles)
+  return (patTelesV ++ telesV)
+tcPatTele [] [] = return []
+tcPatTele _ _ = Env.throwE ArgNumMissMatch
 
 tcEntry :: Entry -> TcMonad Entry
 tcEntry (IsA x a) = do
@@ -139,54 +139,36 @@ tcEntry (Def x a) = do
   aNorm <- Norm.nbe a
   return (Def x aNorm)
 tcEntry (TyDef symbol tele cs) = do
-  tcTele tele
-  let checkConDefWithDef conDef =
+  teleV <- tcTele tele
+  let checkConDefWithDef conDef@(DataDef _ dataTele) =
         Env.extendEnv
-          (TyDef symbol tele [])
-          $ extendTele tele (tcConDef conDef >> return conDef)
+          (TyDef symbol teleV [])
+          $ Env.extendTele teleV (tcTele dataTele >> return conDef)
   ecs <- mapM checkConDefWithDef cs
-  return (TyDef symbol tele ecs)
+  return (TyDef symbol teleV ecs)
 
-tcConDef :: DataDef -> TcMonad ()
-tcConDef (DataDef _ tele) = tcTele tele
-
-tcTele :: Tele -> TcMonad ()
-tcTele [] = return ()
+tcTele :: Tele -> TcMonad Tele
+tcTele [] = return []
 tcTele (x : xs) = do
-  vEntry <- tcEntry x
-  Env.extendEnv vEntry (tcTele xs)
+  xV <- tcEntry x
+  xsV <- Env.extendEnv xV (tcTele xs)
+  return (xV : xsV)
 
-extendTele :: Tele -> TcMonad a -> TcMonad a
-extendTele xs tc = foldr go tc xs
-  where
-    go x after = do
-      vEntry <- tcEntry x
-      Env.extendEnv vEntry after
-
-tcTeleArgs :: Tele -> [Term] -> TcMonad ()
+tcTeleArgs :: Tele -> [Term] -> TcMonad Tele
 tcTeleArgs ((Def x v) : teles) args = do
   xNorm <- Norm.nbe (Var x)
   vNorm <- Norm.nbe v
   AlphaEq.alphaEq xNorm vNorm
-  tcTeleArgs teles args
+  let teleV = Def x vNorm
+  telesV <- Env.extendEnv teleV (tcTeleArgs teles args)
+  return (teleV : telesV)
 tcTeleArgs (IsA x ty : teles) (arg : args) = do
   tyNorm <- Norm.nbe ty
   check arg tyNorm
   argNorm <- Norm.nbe arg
-  Env.extendEnv (Def x argNorm) (tcTeleArgs teles args)
-tcTeleArgs (IsA _ _ : _) [] = Env.throwE ArgNumMissMatch
+  let teleV = [IsA x tyNorm, Def x argNorm]
+  telesV <- Env.extendTele teleV (tcTeleArgs teles args)
+  return (teleV ++ telesV)
+tcTeleArgs (_ : _) [] = Env.throwE ArgNumMissMatch
 tcTeleArgs [] (_ : _) = Env.throwE ArgNumMissMatch
-tcTeleArgs [] [] = return ()
-
-extendTeleArgs :: Tele -> [Term] -> TcMonad a -> TcMonad a
-extendTeleArgs (entry@(Def _ _) : teles) args tc = do
-  entryV <- tcEntry entry
-  Env.extendEnv entryV (extendTeleArgs teles args tc)
-extendTeleArgs (entry@(IsA x _) : teles) (arg : args) tc = do
-  entryV <- tcEntry entry
-  argNorm <- Norm.nbe arg
-  Env.extendEnv
-    entryV
-    ( Env.extendEnv (Def x argNorm) (extendTeleArgs teles args tc)
-    )
-extendTeleArgs [] [] tc = tc
+tcTeleArgs [] [] = return []

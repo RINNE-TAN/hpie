@@ -50,8 +50,8 @@ nbe (Match term cases) = do
 nbe U = return U
 nbe other = return other
 
-extendWithPattern :: Term -> Pattern -> TcMonad [(Symbol, Term)]
-extendWithPattern vNorm (PatVar x) = return [(x, vNorm)]
+extendWithPattern :: Term -> Pattern -> TcMonad Tele
+extendWithPattern vNorm (PatVar x) = return [Def x vNorm]
 extendWithPattern (DataCon dataSymbol args) (PatCon patSymbol pats)
   | dataSymbol == patSymbol && length args == length pats =
       concat <$> zipWithM extendWithPattern args pats
@@ -80,6 +80,7 @@ doSubst _ U = return U
 doSubstCase :: (Symbol, Term) -> Case -> TcMonad Case
 doSubstCase subst (Case pt term) = Case pt <$> doSubst subst term
 
-doSubsts :: [(Symbol, Term)] -> Term -> TcMonad Term
+doSubsts :: Tele -> Term -> TcMonad Term
 doSubsts [] term = return term
-doSubsts (subst : substs) term = doSubst subst term >>= doSubsts substs
+doSubsts ((Def x t) : substs) term = doSubst (x, t) term >>= doSubsts substs
+doSubsts (_ : substs) term = doSubsts substs term
