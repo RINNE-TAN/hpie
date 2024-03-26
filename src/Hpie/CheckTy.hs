@@ -59,11 +59,16 @@ infer U = return U
 infer other = Env.throwE $ CanNotInfer (show other)
 
 check :: Term -> Ty -> TcMonad ()
-check (Lam arg t) fTy = case fTy of
+check (Lam arg body) fTy = case fTy of
   (Pi x aT bT) -> do
+    newArg <- Norm.fresh arg
+    aTNorm <- Norm.nbe aT
     Env.extendTele
-      [IsA x aT, IsA arg aT]
-      ( Norm.nbe bT >>= check t
+      [IsA newArg aTNorm]
+      ( do
+          bTNorm <- Norm.doSubst (x, Var newArg) bT >>= Norm.nbe
+          bodyNorm <- Norm.doSubst (arg, Var newArg) body >>= Norm.nbe
+          check bodyNorm bTNorm
       )
   _ -> failCheck "Pi Type" fTy
 check (Prod first second) pTy = case pTy of
@@ -83,9 +88,10 @@ check (DataCon dataSymbol dataArgs) ty = case ty of
         (tcTeleArgs dataTeles dataArgs)
     return ()
   _ -> failCheck "User Def Type" ty
-check (Match term cases) ty = do
-  termTy <- infer term
-  mapM_ (tcCase termTy ty) cases
+check (Match m cases) ty = do
+  mTy <- infer m
+  mNorm <- Norm.nbe m
+  mapM_ (tcCase mNorm mTy ty) cases
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'
@@ -96,12 +102,18 @@ convert v1 v2 = do
   e2 <- Norm.nbe v2
   AlphaEq.alphaEq e1 e2
 
-tcCase :: Ty -> Ty -> Case -> TcMonad ()
-tcCase termTy ty (Case pat term) = do
-  patTeles <- tcPat pat termTy
+tcCase :: Term -> Ty -> Ty -> Case -> TcMonad ()
+tcCase mNorm mTy ty (Case pat body) = do
+  patTeles <- tcPat pat mTy
+  patTerm <- pat2Term pat
+  mTeles <- AlphaEq.unify mNorm patTerm
   Env.extendTele
-    patTeles
-    (check term ty)
+    (patTeles ++ mTeles)
+    (check body ty)
+
+pat2Term :: Pattern -> TcMonad Term
+pat2Term (PatVar x) = return (Var x)
+pat2Term (PatCon dataSymbol pats) = DataCon dataSymbol <$> mapM pat2Term pats
 
 tcPat :: Pattern -> Ty -> TcMonad Tele
 tcPat (PatVar x) ty = return [IsA x ty]

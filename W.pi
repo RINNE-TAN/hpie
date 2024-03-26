@@ -8,12 +8,27 @@ data Eq (A : U) (a : A) (b : A) where
 .
 
 sym : [A : U] => [x : A] => [y : A] => Eq A x y -> Eq A y x.
-sym = \A x y pf.case pf of
-  | Refl -> Refl
+sym = \A x y pf.
+  case pf of
+    | Refl -> Refl
 .
 
 trans : [A : U] => [x : A] => [y : A] => [z : A] => (Eq A x z) -> (Eq A z y) -> (Eq A x y).
-trans = \A x y z pf1 pf2 . 
+trans = \A x y z pf1 pf2. 
   case pf2 of 
-  | Refl -> pf1 
+    | Refl -> pf1 
 .
+
+cong : [A : U] => [B : U] => [f : A -> B] => [x : A] => [y : A] => (Eq A x y) -> (Eq B (f x) (f y)).
+cong = \A B f x y pf.
+  case pf of 
+    | Refl -> Refl
+.
+
+ind_N : [p : N -> U] => (p Z) -> ([n : N] => (p n) -> p (S n)) -> ([n : N] => p n).
+ind_N = \k pZ pS.
+  \n.
+  case n of 
+    | Z -> pZ
+    | S m -> pS m ((ind_N k pZ pS) m)
+. 
