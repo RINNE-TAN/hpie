@@ -67,8 +67,8 @@ check (Lam arg body) fTy = case fTy of
       [IsA newArg aTNorm]
       ( do
           bTNorm <- Norm.doSubst (x, Var newArg) bT >>= Norm.nbe
-          bodyNorm <- Norm.doSubst (arg, Var newArg) body >>= Norm.nbe
-          check bodyNorm bTNorm
+          newBody <- Norm.doSubst (arg, Var newArg) body
+          check newBody bTNorm
       )
   _ -> failCheck "Pi Type" fTy
 check (Prod first second) pTy = case pTy of
@@ -92,6 +92,9 @@ check (Match m cases) ty = do
   mTy <- infer m
   mNorm <- Norm.nbe m
   mapM_ (tcCase mNorm mTy ty) cases
+check TODO ty = do
+  Env.logInfo ("Found TODO, expected: ", ty)
+  return ()
 check other tTy = do
   tTy' <- infer other
   convert tTy tTy'
@@ -104,12 +107,32 @@ convert v1 v2 = do
 
 tcCase :: Term -> Ty -> Ty -> Case -> TcMonad ()
 tcCase mNorm mTy ty (Case pat body) = do
-  patTeles <- tcPat pat mTy
-  patTerm <- pat2Term pat
+  (newPat, newBody) <- freshPatBody pat body
+  patTeles <- tcPat newPat mTy
+  patTerm <- pat2Term newPat
   mTeles <- AlphaEq.unify mNorm patTerm
-  Env.extendTele
-    (patTeles ++ mTeles)
-    (check body ty)
+  Env.extendTele (patTeles ++ mTeles) (check newBody ty)
+
+freshPatBody :: Pattern -> Term -> TcMonad (Pattern, Term)
+freshPatBody (PatVar x) body = do
+  newX <- Norm.fresh x
+  newBody <- Norm.doSubst (x, Var newX) body
+  return (PatVar newX, newBody)
+freshPatBody (PatCon dataSymbol pats) body = do
+  (newPats, newBody) <- freshPatsBody pats body
+  return (PatCon dataSymbol newPats, newBody)
+
+freshPatsBody :: [Pattern] -> Term -> TcMonad ([Pattern], Term)
+freshPatsBody [] body = return ([], body)
+freshPatsBody (pat : pats) body = do
+  (newPat, newBody) <- freshPatBody pat body
+  (newPats, resBody) <- inBoundPat [newPat] (freshPatsBody pats newBody)
+  return (newPat : newPats, resBody)
+
+inBoundPat :: [Pattern] -> TcMonad a -> TcMonad a
+inBoundPat ((PatVar x) : xs) tc = Env.inBound x (inBoundPat xs tc)
+inBoundPat ((PatCon _ pats) : xs) tc = inBoundPat (pats ++ xs) tc
+inBoundPat [] tc = tc
 
 pat2Term :: Pattern -> TcMonad Term
 pat2Term (PatVar x) = return (Var x)

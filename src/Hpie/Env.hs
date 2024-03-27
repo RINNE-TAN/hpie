@@ -23,11 +23,18 @@ runTcMonad :: TcMonad a -> Env -> ExceptT HpieError IO a
 runTcMonad = runReaderT
 
 extendEnv :: Entry -> TcMonad a -> TcMonad a
-extendEnv entry =
-  local
-    ( \e@Env {ctx = c} ->
-        e {ctx = entry : c}
-    )
+extendEnv entry tc =
+  boundEntry entry $
+    local
+      ( \e@Env {ctx = c} ->
+          e {ctx = entry : c}
+      )
+      tc
+
+boundEntry :: Entry -> TcMonad a -> TcMonad a
+boundEntry (IsA x _) = inBound x
+boundEntry (Def x _) = inBound x
+boundEntry (TyDef x _ _) = inBound x
 
 extendTele :: Tele -> TcMonad a -> TcMonad a
 extendTele es tc = foldr extendEnv tc es

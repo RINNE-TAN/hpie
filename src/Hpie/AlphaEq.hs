@@ -92,6 +92,8 @@ alphaEq = \t1 t2 -> alpha2tc (go t1 t2)
           case2
           (\(Case pat1 c1) (Case pat2 c2) -> rawEq pat1 pat2 *> go c1 c2)
     go U U = yes
+    go _ TODO = yes
+    go TODO _ = yes
     go l r = no l r
 
 unify :: Term -> Term -> TcMonad Tele

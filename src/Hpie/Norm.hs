@@ -13,8 +13,10 @@ fresh x =
 
 nbe :: Term -> TcMonad Term
 nbe (Var x) = Env.searchV x
-nbe (Arrow aT bT) = return (Pi "_" aT bT)
-nbe (Pair aT bT) = return (Sigma "_" aT bT)
+nbe (Pi x aT bT) = Pi x <$> nbe aT <*> return bT
+nbe (Sigma x aT bT) = Sigma x <$> nbe aT <*> return bT
+nbe (Arrow aT bT) = nbe (Pi "_" aT bT)
+nbe (Pair aT bT) = nbe (Sigma "_" aT bT)
 nbe (App f arg) = do
   fNorm <- nbe f
   argNorm <- nbe arg
@@ -49,6 +51,7 @@ nbe (Match term cases) = do
         go cases
     _ -> return (Match termNorm cases)
 nbe U = return U
+nbe TODO = return TODO
 nbe other = return other
 
 extendWithPattern :: Term -> Pattern -> TcMonad Tele
@@ -77,6 +80,7 @@ doSubst subst (TyCon name args) = TyCon name <$> mapM (doSubst subst) args
 doSubst subst (DataCon name args) = DataCon name <$> mapM (doSubst subst) args
 doSubst subst (Match t cases) = Match <$> doSubst subst t <*> mapM (doSubstCase subst) cases
 doSubst _ U = return U
+doSubst _ TODO = return TODO
 
 doSubstCase :: (Symbol, Term) -> Case -> TcMonad Case
 doSubstCase subst (Case pt term) = Case pt <$> doSubst subst term

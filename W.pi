@@ -32,3 +32,64 @@ ind_N = \k pZ pS.
     | Z -> pZ
     | S m -> pS m ((ind_N k pZ pS) m)
 . 
+
+plus : N -> N -> N.
+plus = \l r. 
+  case l of
+    | Z -> r
+    | S n -> S (plus n r)
+.
+
+plus_Z_sym : [x : N] => Eq N (plus Z x) (plus x Z).
+plus_Z_sym = \x.ind_N
+  (\n.Eq N (plus Z n) (plus n Z))
+  (Refl)
+  (\n pf.
+    cong N N (\n.S n) 
+      (n)
+      (plus n Z)
+      pf
+  )
+  (x)
+.
+
+plus_sym : [x : N] => [y : N] => Eq N (plus x y) (plus y x).
+plus_sym = \x.ind_N
+  (\n.[y : N] => Eq N (plus n y) (plus y n))
+  (plus_Z_sym)
+  (\m pfx.\y.ind_N
+    (\t.Eq N (plus (S m) t) (plus t (S m)))
+    (sym N 
+      (plus Z (S m))
+      (plus (S m) Z)
+      (plus_Z_sym (S m))
+    )
+    (\k pfy.cong N N(\n.S n)
+      (plus m (S k))
+      (plus k (S m))
+      (trans N 
+        (plus m (S k))
+        (plus k (S m))
+        (S (plus k m))
+        (pfx (S k))
+        (trans N
+          (S (plus k m))
+          (plus k (S m))
+          (plus (S m) k)
+          (cong N N (\n.S n)
+            (plus k m)
+            (plus m k)
+            (sym N 
+              (plus m k)
+              (plus k m)
+              (pfx k)
+            )
+          )
+          (pfy)
+        )
+      ) 
+    )
+    (y)
+  )
+  (x)
+.

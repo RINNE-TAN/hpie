@@ -150,6 +150,9 @@ dataName = do
 pU :: Parser Term
 pU = tokens "U" $> U
 
+pTODO :: Parser Term
+pTODO = tokens "TODO" $> TODO
+
 pVarOrCon :: Parser Term
 pVarOrCon = do
   i <- token ident
@@ -230,7 +233,7 @@ pParens :: Parser Term
 pParens = parens pTerm
 
 pAtom :: Parser Term
-pAtom = choice [pU, pVarOrCon, pPi, pSigma, pLam, pProd, pMatch, pParens]
+pAtom = choice [pU, pTODO, pVarOrCon, pPi, pSigma, pLam, pProd, pMatch, pParens]
 
 pFirst :: Parser Term
 pFirst = do

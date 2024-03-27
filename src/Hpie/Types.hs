@@ -31,6 +31,7 @@ data Term
   | TyCon Symbol [Term]
   | DataCon Symbol [Term]
   | Match Term [Case]
+  | TODO
   | U
 
 data Case = Case Pattern Term
@@ -62,6 +63,7 @@ instance Show Term where
   show (DataCon symbol args) = printf "%s %s" (show symbol) (show args)
   show (Match term cases) = printf "case %s of %s" (show term) (show cases)
   show U = "U"
+  show TODO = "TODO"
 
 type TopLevel = Entry
 
