@@ -1,0 +1,27 @@
+data Absurd where
+.
+
+ind_absurd : [p : U] => Absurd -> p. 
+ind_absurd = \p absurd.case absurd of
+.
+
+data Either (l : U) (r : U) where
+  | Left (l)
+  | Right (r)
+.
+
+not : [p : U] => U.
+not = \p.p -> Absurd.
+
+ex_mid_doub_neg : [p : U] => not (not (Either p (not p))).
+ex_mid_doub_neg = \p pf.
+    pf (
+        Right (\r.pf (Left r))
+    )
+.
+
+ex_mid_impl : [p : U] => Either p (not p) -> not (not p) -> p.
+ex_mid_impl = \p e np.case e of 
+    | Left l -> l
+    | Right r -> ind_absurd p (np r)
+.

@@ -1,0 +1,132 @@
+data Absurd where
+.
+
+ind_absurd : [p : U] => Absurd -> p. 
+ind_absurd = \p absurd.case absurd of
+.
+
+data Trival where
+  | Ok
+.
+
+data Eq (A : U) (a : A) (b : A) where
+  | Refl [a = b]
+.
+
+sym : [A : U] => [x : A] => [y : A] => Eq A x y -> Eq A y x.
+sym = \A x y pf.
+  case pf of
+    | Refl -> Refl
+.
+
+trans : [A : U] => [x : A] => [y : A] => [z : A] => (Eq A x z) -> (Eq A z y) -> (Eq A x y).
+trans = \A x y z pf1 pf2. 
+  case pf2 of 
+    | Refl -> pf1 
+.
+
+cong : [A : U] => [B : U] => [f : A -> B] => [x : A] => [y : A] => (Eq A x y) -> (Eq B (f x) (f y)).
+cong = \A B f x y pf.
+  case pf of 
+    | Refl -> Refl
+.
+
+ind_eq : [A : U] => [p : A -> U] => [x : A] => [y : A] => Eq A x y -> p x -> p y.
+ind_eq = \A p x y pf px.
+  case pf of 
+    | Refl -> px
+.
+
+
+data state where
+  | HandshakeWait
+  | HandshakeComplete
+  | DataTransfer
+  | Closed
+.
+
+eq_DataTransfer_mot : state -> U.
+eq_DataTransfer_mot = \s.case s of
+    | HandshakeWait -> Absurd
+    | HandshakeComplete -> Absurd
+    | DataTransfer -> Trival
+    | Closed -> Absurd
+.
+
+ind_eq_DataTransfer : [s : state] => Eq state DataTransfer s -> eq_DataTransfer_mot s.
+ind_eq_DataTransfer = \s pf.
+    ind_eq state eq_DataTransfer_mot DataTransfer s pf Ok
+.
+
+data message where
+  | ClientHello
+  | ServerHello
+  | Certificate
+  | ClientKeyExchange
+  | ChangeCipherSpec
+  | Finished
+.
+
+data transition (s : state) (m : message) (e : state) where
+  | SendClientHello [s = HandshakeWait] [m = ClientHello] [e = HandshakeWait]
+  | ReceiveServerHello [s = HandshakeWait] [m = ServerHello] [e = HandshakeWait]
+  | HandshakeFinished [s = HandshakeWait] [m = Finished] [e = HandshakeComplete]
+  | StartDataTransfer [s = HandshakeComplete] [m = ChangeCipherSpec] [e = DataTransfer]
+  | CloseConnection [s = DataTransfer] [m = Finished] [e = Closed]
+.
+
+data secure_transition (s: state) (m: message) where
+  | Safe [s = HandshakeComplete] [m = ChangeCipherSpec]
+.
+
+secure_data_transfer : 
+[s : state] => [m : message] => [e : state] => 
+    transition s m e -> 
+        (Eq state e DataTransfer) -> secure_transition s m.
+secure_data_transfer = \s m e t eStateEq.case t of
+  | SendClientHello -> ind_absurd (secure_transition s m) (
+        ind_eq_DataTransfer HandshakeWait (
+            trans 
+                state 
+                DataTransfer 
+                HandshakeWait 
+                e 
+                (sym state e DataTransfer eStateEq) 
+                Refl
+        )
+  )
+  | ReceiveServerHello -> ind_absurd (secure_transition s m) (
+        ind_eq_DataTransfer HandshakeWait (
+            trans 
+                state 
+                DataTransfer 
+                HandshakeWait 
+                e 
+                (sym state e DataTransfer eStateEq) 
+                Refl
+        )
+  )
+  | HandshakeFinished -> ind_absurd (secure_transition s m) (
+        ind_eq_DataTransfer HandshakeComplete (
+            trans 
+                state 
+                DataTransfer 
+                HandshakeComplete 
+                e 
+                (sym state e DataTransfer eStateEq) 
+                Refl
+        )
+  )
+  | StartDataTransfer -> Safe
+  | CloseConnection -> ind_absurd (secure_transition s m) (
+        ind_eq_DataTransfer Closed (
+            trans 
+                state 
+                DataTransfer 
+                Closed 
+                e 
+                (sym state e DataTransfer eStateEq) 
+                Refl
+        )
+  )
+.
