@@ -155,10 +155,12 @@ tcPatTele pats (Def x term : teles) = do
   let tele = unifyTeles
   telesV <- Env.extendTele tele (tcPatTele pats teles)
   return (tele ++ telesV)
-tcPatTele (pat : pats) (tele@(IsA _ ty) : teles) = do
+tcPatTele (pat : pats) (tele@(IsA x ty) : teles) = do
   tyV <- Norm.nbe ty
   patTelesV <- tcPat pat tyV
-  telesV <- Env.extendTele (tele : patTelesV) (tcPatTele pats teles)
+  patTerm <- pat2Term pat
+  newTeles <- Norm.doSubstsTele [Def x patTerm] teles
+  telesV <- Env.extendTele (tele : patTelesV) (tcPatTele pats newTeles)
   return (patTelesV ++ telesV)
 tcPatTele [] [] = return []
 tcPatTele _ _ = Env.throwE ArgNumMissMatch

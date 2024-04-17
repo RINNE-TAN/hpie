@@ -89,3 +89,15 @@ doSubsts :: Tele -> Term -> TcMonad Term
 doSubsts [] term = return term
 doSubsts ((Def x t) : substs) term = doSubst (x, t) term >>= doSubsts substs
 doSubsts (_ : substs) term = doSubsts substs term
+
+doSubstsTele :: Tele -> Tele -> TcMonad Tele
+doSubstsTele _ [] = return []
+doSubstsTele subst ((Def x term) : teles) = do
+  newTerm <- doSubsts subst term
+  newTeles <- doSubstsTele subst teles
+  return (Def x newTerm : newTeles)
+doSubstsTele subst ((IsA x term) : teles) = do
+  newTerm <- doSubsts subst term
+  newTeles <- doSubstsTele subst teles
+  return (IsA x newTerm : newTeles)
+doSubstsTele subst (_ : teles) = doSubstsTele subst teles

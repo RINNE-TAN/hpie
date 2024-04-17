@@ -1,0 +1,27 @@
+data Pair (A : U) (B : A -> U) where
+  | Cons (x : A) (B x)
+.
+
+fst : [A : U] => [B : A -> U] => Pair A B -> A.
+fst = \A B p.case p of
+  | Cons a b -> a
+.
+
+snd : [A : U] => [B : A -> U] => [p : Pair A B] => B (fst A B p).
+snd = \A B p.case p of
+  | Cons a b -> b
+.
+
+Sigma2Pi : [A : U] => [B : A -> U] => {x : A | B x} -> (
+  [r : U] => ([x : A] => B x -> r) -> r
+).
+Sigma2Pi = \A B p.
+  \r f.(f p.0 p.1)
+.
+
+Pi2Sigma : [A : U] => [B : A -> U] => ([r : U] => ([x : A] => B x -> r) -> r) ->
+  {x : A | B x}
+.
+Pi2Sigma = \A B f.
+  f {x : A | B x} (\a b.(a, b))
+.
